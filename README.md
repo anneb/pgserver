@@ -1,4 +1,6 @@
 # PGServer
+*Work in progress, many/some features still missing!*
+
 Another PostGIS http API server  
 Upload and download geo-data, preview, filter  
 Serve cached mapbox vector tiles (mvt), geojson, geobuf
@@ -20,6 +22,7 @@ If you don't have git, you can donwload [a zip file](https://github.com/anneb/pg
      npm start
      # point your browser to localost:8090 for more info
 
+For interactive data browsing, preview, administration and api documentation, head to [http://localhost:8090](http://localhost:8090).
 
 ### Due credit
 API based on [Dirt Simple PostGIS http API](https://github.com/tobinbradley/dirt-simple-postgis-http-api)

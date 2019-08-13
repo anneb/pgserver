@@ -21,7 +21,8 @@ const upload = require('./upload.js')(app);
 const mvt = require('./mvt.js')(app, readOnlyPool);
 const geojson = require('./geojson.js')(app, readOnlyPool);
 const geobuf = require('./geobuf.js')(app, readOnlyPool);
-const list_layers = require('./list_layers')(app, readOnlyPool);
+const list_layers = require('./list_layers.js')(app, readOnlyPool);
+const layer_columns = require('./layer_columns.js')(app, readOnlyPool);
 const bbox = require('./bbox.js')(app, readOnlyPool);
 
 app.listen(pgserverconfig.port);

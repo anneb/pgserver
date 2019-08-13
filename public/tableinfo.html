@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Info</title>
+    <script>
+    
+    function init() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const fullTableName = urlParams.get('table');
+        const geomType = urlParams.get('geomtype');
+        document.querySelector('#tablename').innerHTML = fullTableName;
+        const parts = fullTableName.split('.');
+        const tableName = (parts.length > 1) ? parts[1] : parts[0];
+        fetch(`data/layer_columns/${tableName}`).then(response=>{
+            const list = document.querySelector('#columns');
+            if (response.ok) {
+                response.json().then(json=> {
+                    for (item of json) {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<a href="./attrinfo.html?table=${fullTableName}&column=${item.field_name}&columntype=${item.field_type}&geomtype=${geomType}"><b>${item.field_name}</b></a> (${item.field_type})`
+                        list.appendChild(li);
+                    }
+                })
+            } else {
+                const li = document.createElement('li');
+                li.innerHTML = `Error getting list, response: ${response.status} ${response.statusText?response.statusText:''} ${response.url}`
+                list.appendChild(li);
+            }
+        })
+        fetch(`api/bbox/${fullTableName}`).then(response=>{
+            const bbox = document.querySelector('#bbox');
+            if (response.ok) {
+                response.json().then(json=> {
+                    bbox.innerHTML = "";
+                    for (item of json) {
+                        bbox.innerHTML += item.bbox;  
+                    }
+                })
+            } else {
+                bbox.innerHTML = `Error getting bbox, response: response: ${response.status} ${response.statusText?response.statusText:''} ${response.url}`
+            }
+        })
+    }
+    </script>
+</head>
+<body onload="init()">
+    <h1>Layer informatie</h1>
+    <h2 id="tablename"></h2>
+    <div id="bbox">waiting for bbox...</div>
+    <ul id="columns"></ul>
+    <a href="info.html">Terug naar layer overzicht</a>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Info</title>
+    <script>
+    
+    function init() {
+        fetch('data/list_layers').then(response=>{
+            if (response.ok) {
+                response.json().then(json=> {
+                    const list = document.querySelector('#layerlist');
+                    for (item of json) {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<a href="tableinfo.html?table=${item.f_table_schema}.${item.f_table_name}&geom_column=${item.f_geometry_column}&srid=${item.srid}&geom_type=${item.type}&dimensions=${item.coord_dimension}">${item.f_table_schema}.${item.f_table_name}</a> geom: ${item.f_geometry_column}, srid:${item.srid}, geom_type:${item.type}, ${item.coord_dimension}D, count: ${item.estimated_rows}`
+                        list.appendChild(li);
+                    }
+                })
+            }
+        })
+    }
+    </script>
+</head>
+<body onload="init()">
+    <h1>Vector layers in database</h1>
+    <ul id="layerlist"></ul>
+</body>
+</html>
