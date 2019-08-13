@@ -1,3 +1,5 @@
+// based on https://raw.githubusercontent.com/tobinbradley/dirt-simple-postgis-http-api/master/routes/mvt.js
+
 const sm = require('@mapbox/sphericalmercator');
 const fs = require('fs');
 const merc = new sm({

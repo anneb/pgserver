@@ -1,66 +1,66 @@
-// based on https://raw.githubusercontent.com/tobinbradley/dirt-simple-postgis-http-api/master/routes/geojson.js
+// based on https://github.com/tobinbradley/dirt-simple-postgis-http-api/blob/master/routes/geobuf.js
 
 // route query
 const sql = (params, query) => {
-  let bounds = query.bounds ? query.bounds.split(',').map(Number) : null;
-  bounds && bounds.length === 3 ? bounds = merc.bbox(bounds[1], bounds[2], bounds[0]) : null;
+    let bounds = query.bounds ? query.bounds.split(',').map(Number) : null
+    bounds && bounds.length === 3
+      ? (bounds = merc.bbox(bounds[1], bounds[2], bounds[0]))
+      : null
   
-  return `
-  SELECT 
-    Row_to_json(fc) as geojson
-
-  FROM (
+    return `
+  
     SELECT 
-      'FeatureCollection' AS type, 
-      COALESCE(Array_to_json(Array_agg(f)), '[]'::json) AS features
-
-  FROM (
-    SELECT 
-      'Feature' AS type, 
-      St_asgeojson(ST_Transform(lg.${query.geom_column}, 4326))::json AS geometry,
-      ${query.columns ? ` 
-      Row_to_json(
-        (
-          SELECT 
-            l 
-          FROM   
-         (SELECT ${query.columns}) AS l
-        )
-      ) AS properties 
-      ` : `'{}'::json AS properties`}
-                
-    FROM   
-      ${params.table} AS lg
-      ${bounds ? `, (SELECT ST_SRID(${query.geom_column}) as srid FROM ${params.table} LIMIT 1) sq` : ''}
-      
+      ST_AsGeobuf(q, 'geom')
     
-    -- Optional Filter
-    ${query.filter || bounds ? 'WHERE' : ''}
-    ${query.filter ? `${query.filter}` : '' }
-    ${query.filter && bounds ? 'AND' : ''}
-    ${bounds ? `      
-      ${query.geom_column} &&
-      ST_Transform(
-        ST_MakeEnvelope(${bounds.join()}, 4326), 
-        srid
-      )      
-    ` : ''}
+    FROM
+    (
+  
+      SELECT
+        ST_Transform(${query.geom_column}, 4326) as geom
+        ${query.columns ? `, ${query.columns}` : ''}
+  
+      FROM
+        ${params.table}
+        ${
+          bounds
+            ? `, (SELECT ST_SRID(${query.geom_column}) as srid FROM ${
+                params.table
+              } LIMIT 1) sq`
+            : ''
+        }
+  
+      -- Optional Filter
+      ${query.filter || bounds ? 'WHERE' : ''}
+      ${query.filter ? `${query.filter}` : ''}
+      ${query.filter && bounds ? 'AND' : ''}
+      ${
+        bounds
+          ? `      
+            ${query.geom_column} &&
+            ST_Transform(
+              ST_MakeEnvelope(${bounds.join()}, 4326), 
+              srid
+            )      
+          `
+          : ''
+      }
+  
+    ) as q; 
+  
+    `
+  }
 
-    ) AS f
-  ) AS fc; 
-  `
-}
-
-module.exports = function(app, pool) {
+  
+  module.exports = function(app, pool) {
 /**
  * @swagger
  *
- * /data/geojson/{table}:
+ * /data/geobuf/{table}:
  *   get:
- *     description: return table as geojson
+ *     description: return table as geobuf
  *     tags: ['geodata']
  *     produces:
- *       - application/json
+ *       - application/x-protobuf
  *     parameters:
  *       - name: table
  *         description: name of table or view
@@ -92,14 +92,14 @@ module.exports = function(app, pool) {
  *       422:
  *         description: invalid datasource or columnname
  */
-  app.get('/data/geojson/:table', async (req, res) => {
-      if (!req.query.geom_column) {
+  app.get('/data/geobuf/:table', async (req, res)=> {
+    if (!req.query.geom_column) {
         req.query.geom_column = 'geom';
       }
       const sqlString = sql(req.params, req.query);
       try {
         const result = await pool.query(sqlString);
-        res.json(result.rows[0].geojson)
+        res.set('Content-Type', 'text/x-protobuf').send(result.rows[0].st_asgeobuf);
       } catch(err) {
         console.log(err);
         switch (err.code) {
@@ -112,5 +112,5 @@ module.exports = function(app, pool) {
         }
         res.status(422).json({error:err})
       }
-  })
-}
+    })
+  }

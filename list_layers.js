@@ -1,3 +1,4 @@
+// based on https://raw.githubusercontent.com/tobinbradley/dirt-simple-postgis-http-api/master/routes/list_layers.js
 
 
 const sql = () => {
