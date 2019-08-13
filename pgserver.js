@@ -20,6 +20,7 @@ const login = require('./login.js')(app);
 const upload = require('./upload.js')(app);
 const mvt = require('./mvt.js')(app, readOnlyPool);
 const geojson = require('./geojson.js')(app, readOnlyPool);
+const geobuf = require('./geobuf.js')(app, readOnlyPool);
 const list_layers = require('./list_layers')(app, readOnlyPool);
 const bbox = require('./bbox.js')(app, readOnlyPool);
 

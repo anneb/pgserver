@@ -88,7 +88,7 @@ const sql = (params, query) => {
  *         pattern: '^-?[0-9]{0,20}.?[0-9]{1,20}?(,-?[0-9]{0,20}.?[0-9]{1,20}?){2,3}$'
  *     responses:
  *       200:
- *         description: geojson
+ *         description: geobuf data
  *       422:
  *         description: invalid datasource or columnname
  */
