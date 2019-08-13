@@ -4,6 +4,7 @@
   "description": "PGserver receives, converts and serves geo-data between postgis and http-clients.",
   "main": "pgserver.js",
   "scripts": {
+    "start": "nodemon pgserver.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Anne Blankert, Geodan",

@@ -1,17 +1,8 @@
 const sm = require('@mapbox/sphericalmercator');
 const fs = require('fs');
-const {Pool} = require('pg');
-const fsPromises = fs.promises;
-const path = require('path');
 const merc = new sm({
   size: 256
 })
-
-const dbconfig = require('./config/dbconfig.json');
-
-const pool = new Pool(dbconfig);
-
-pool.connect();
 
 // route query
 const sql = (params, query) => {
@@ -55,18 +46,19 @@ const sql = (params, query) => {
   
     ) q
     `
-  }
+  } // TODO, use sql place holders $1, $2 etc. instead of inserting user-parameters into query
   
 
 // TODO add flat-cache
 
-module.exports = function(app) {
+module.exports = function(app, pool) {
  /**
  * @swagger
  *
- * /data/{datasource}/mvt/{z}/{x}/{y}?columns={columns}:
+ * /data/{datasource}/mvt/{z}/{x}/{y}:
  *   get:
  *     description: get mapbox vector tile (mvt)
+ *     tags: ['geodata']
  *     produces:
  *       - application/x-protobuf
  *     parameters:
@@ -93,15 +85,12 @@ module.exports = function(app) {
  *       - name: geom_column
  *         description: name of geometry column (default 'geom')
  *         in: query
- *         default: geom
  *         required: false
  *       - name: columns
  *         description: optional comma seperated list of attribute columns to be added to the mvt geometries
  *         in: query
  *         required: false
  *         type: string
- *         default: null
- *         allowEmptyValue: true
  *     responses:
  *       200:
  *         description: vector tile
@@ -112,11 +101,11 @@ module.exports = function(app) {
  */
     app.get('/data/:datasource/mvt/:z/:x/:y', async (req, res)=>{
         if (!req.query.geom_column) {
-            req.query.geom_column = 'geom';
+            req.query.geom_column = 'geom'; // default
         }
         req.params.table = req.params.datasource;
         const sqlString = sql(req.params, req.query);
-        console.log(sqlString);
+        //console.log(sqlString);
         try {
             const result = await pool.query(sqlString);
             const mvt = result.rows[0].st_asmvt
