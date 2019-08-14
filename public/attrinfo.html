@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Info</title>
+    <style>
+        .canvascontainer {width: 500px; height: auto; border: 1px solid lightblue}
+        #map {display: inline-block; width: 500px; height: 500px; border: 1 px solid lightblue;}
+        #info {display: inline-block;}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.2.0/mapbox-gl.js'></script>
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.2.0/mapbox-gl.css' rel='stylesheet' />
+    <script>
+    "use strict";
+
+    let chart1 = null, chart2 = null;
+
+    function quantile(arr, p) {
+        let len = arr.length, id;
+        if ( p === 0.0 ) {
+        return arr[ 0 ];
+        }
+        if ( p === 1.0 ) {
+        return arr[ len-1 ];
+        }
+        id = ( len*p ) - 1;
+
+        // [2] Is the index an integer?
+        if ( id === Math.floor( id ) ) {
+        // Value is the average between the value at id and id+1:
+        return ( arr[ id ] + arr[ id+1 ] ) / 2.0;
+        }
+        // [3] Round up to the next index:
+        id = Math.ceil( id );
+        return arr[ id ];
+    }
+    function niceNumbers (range, round) {
+        const exponent = Math.floor(Math.log10(range));
+        const fraction = range / Math.pow(10, exponent);
+        let niceFraction;
+        if (round) {
+            if (fraction < 1.5) niceFraction = 1;
+            else if (fraction < 3) niceFraction = 2;
+            else if (fraction < 7) niceFraction = 5;
+            else niceFraction = 10;
+        } else {
+            if (fraction <= 1.0) niceFraction = 1;
+            else if (fraction <= 2) niceFraction = 2;
+            else if (fraction <= 5) niceFraction = 5;
+            else niceFraction = 10;
+        }
+        return niceFraction * Math.pow(10, exponent);
+    }
+    function getLinearTicks (min, max, maxTicks) {
+        const range = niceNumbers(max - min, false);
+        let tickSpacing;
+        if (range === 0) {
+            tickSpacing = 1;
+        } else {
+            tickSpacing = niceNumbers(range / (maxTicks), true);
+        }
+        return {
+            min: Math.floor(min / tickSpacing) * tickSpacing,
+            max: Math.ceil(max / tickSpacing) * tickSpacing,
+            tickWidth: tickSpacing
+        };
+    }
+
+    let map = null;
+
+    function initMap()
+    {
+        map = new mapboxgl.Map({
+            container: 'map',
+            "style": {
+                "version": 8,
+                "name": "DefaultBaseStyle",
+                "id": "defaultbasestyle",
+                "glyphs": `https://free.tilehosting.com/fonts/{fontstack}/{range}.pbf?key=`,
+                "sources": {
+                    "osmgrijs": {
+                        "type":"raster",
+                        "tileSize":256,
+                        "tiles":[
+                          "https://tiles.edugis.nl/mapproxy/osm/tiles/osmgrayscale_EPSG900913/{z}/{x}/{y}.png?origin=nw"
+                        ],
+                        "attribution":"&copy; <a href=\"https://www.openstreetmap.org/about\" target=\"copyright\">OpenStreetMap contributors</a>"
+                    }
+                },
+                "layers": [
+                    {
+                        "id": "osmgrijs",
+                        "type": "raster",
+                        "source": "osmgrijs"
+                    }
+                ]
+            }
+        });
+        map.on('mousemove', function (e) {
+            var features = map.queryRenderedFeatures(e.point).map(function(feature){ return {layer: {id: feature.layer.id, type: feature.layer.type}, properties:(feature.properties)};});
+            document.getElementById('info').innerHTML = JSON.stringify(features.map(feature=>feature.properties), null, 2);
+        });
+    }
+
+    const colors1 = ["#686868", "#e60000", "#000000", "#faaa00", "#734c00", "#b2b2b2", "#267300", "#beffdc", "#ffff73", 
+                    "#a3ff73", "#e9ffbe", "#b4d79e", "#7ed2fc", "#ffffff"];
+
+    const colors = ["#14a4ab", "#a9a9a9", "#4e4e4e", "#67ae00", '#febe00', "#e2fe5f", "#ada4fe", '#e8beff', '#d7d79e', 
+                    '#0afeb3', '#a83800', '#73dfff','#69d5b4', '#bee8ff', '#97dbf2', '#feee00', '#e9ffbe', '#97dbf2', 
+                    '#b1d600', '#73b2ff', '#97dbf2', '#fefac2', '#fe8419', '#7ab6f5', '#000000', '#00e6a9', '#b39d3d',
+                    '#97fe00', '#97fe00', '#ffeabe', '#ae974b', '#97dbf2', '#bed2ff', '#73dfff' ,'#97dbf2', '#ffbebe',
+                    '#ac7a9d']
+
+    const greenScheme = [{red:247, green:252, blue:253}, {red:0, green:68, blue:27}];
+
+    function hex (i) {
+        let result = i.toString(16);
+        if (result.length < 2) {
+            result = '0' + result;
+        }
+        return result;
+    }
+
+    function createRangeColors(classLabels) {
+        const length = classLabels.length;
+        const result = [];
+        if (length > 1) {
+            const redStep = (greenScheme[0].red - greenScheme[1].red) / (length - 1);
+            const greenStep = (greenScheme[0].green - greenScheme[1].green) / (length - 1);
+            const blueStep = (greenScheme[0].blue - greenScheme[1].blue) / (length - 1);
+            for (let i = 0; i < length; i++) {
+                result.push('#' + hex(greenScheme[0].red - Math.round(redStep * i)) + hex(greenScheme[0].green - Math.round(greenStep * i)) + hex(greenScheme[0].blue - Math.round(blueStep * i)));
+                result.push(classLabels[i]);
+            }
+            result.push('rgba(0,0,0,1)');
+        } 
+        return result;
+    }
+
+    function showMapLayer(fullTableName, geomType, attrName, attrType, classLabels) {
+        let layerType, paint;
+        const classLabelAndColors = classLabels.reduce((result, key, index)=>{
+            result.push(key);
+            result.push(colors[index % colors.length])
+            return result;
+        }, []);
+        const rangeColors = createRangeColors(classLabels);
+        let styledColors;
+        if (classLabels.length < 2) {
+            styledColors = colors[0];
+        } else {
+            switch (attrType) {
+            case  'varchar':
+                styledColors = [
+                    "match",
+                    ["get", attrName],
+                    ...classLabelAndColors,
+                    colors[0]
+                ];
+                break;
+            case 'numeric':
+                styledColors = [
+                    "step",
+                    ["to-number", ["get", attrName]],
+                    ...rangeColors
+                ]
+                break;
+            default:
+                styledColors = [
+                    "step",
+                    ["get", attrName],
+                    ...rangeColors
+                ]
+            }
+        }
+        switch (geomType) {
+            case 'MULTIPOLYGON':
+            case 'POLYGON':
+                layerType = 'fill';
+                paint = {
+                    "fill-color": styledColors,
+                    "fill-outline-color": "black",
+                    "fill-opacity": 0.8
+                }
+                break;
+            case 'MULTILINESTRING':
+            case 'LINESTRING':
+                layerType = 'line';
+                paint = {
+                    "line-color": styledColors,
+                    "line-width": 1
+                }
+                break;
+            case 'MULTIPOINT':
+            case 'POINT': 
+                layerType = 'circle';
+                paint = {
+                    "circle-radius": 5,
+                    "circle-color": styledColors,
+                    "circle-stroke-color": "black",
+                    "circle-stroke-width" : 1
+                }
+                break;
+            default: 
+                document.querySelector("#layerjson").innerHTML = `Field geom of type: '${geomType}' not supported<br>Supported types: (MULTI-) POINT/LINE/POLYGON<p>`
+                
+        }
+        if (layerType){
+            const baseUrl = new URL(`/data`, window.location.href).href;
+            const url = `${baseUrl}/${fullTableName}/mvt/{z}/{x}/{y}?columns="${attrName}"`
+            console.log(`url: ${url}`);
+            const layer = {
+                "id": "attrlayer",
+                "type": layerType,
+                "source": {
+                    "type": "vector",
+                    "tiles": [url],
+                },
+                "source-layer": fullTableName,
+                "paint": paint,
+                "filter": ['has', attrName]
+            }
+            map.addLayer(layer);
+            document.querySelector("#layerjson").innerHTML = `<pre>${JSON.stringify(layer, null, 2)}</pre>`;
+        }
+        
+    }
+    
+    function init() {
+        initMap();
+        const urlParams = new URLSearchParams(window.location.search);
+        const fullTableName = urlParams.get('table');
+        const attrName = urlParams.get("column");
+        const attrType = urlParams.get("columntype");
+        const geomType = urlParams.get('geomtype');
+        document.querySelector('#tablename').innerHTML = fullTableName;
+        document.querySelector('#columnname').innerHTML = `${attrName} (${attrType})`;
+        document.querySelector('#back').innerHTML = `<a href="tableinfo.html?table=${fullTableName}">Terug naar layer informatie</a>`
+        const parts = fullTableName.split('.');
+        const tableName = (parts.length > 1) ? parts[1] : parts[0];
+        fetch(`data/query/${fullTableName}?columns=count("${attrName}"),count(distinct+"${attrName}")+as+distinct,min("${attrName}"),max("${attrName}")`).then(response=>{
+            if (response.ok) {
+                response.json().then(json=> {
+                    const div = document.querySelector('#attrinfo');
+                    div.innerHTML = `<b>aantal</b>:${json[0].count}<br>
+                    <b>verschillend</b>:${json[0].distinct}<br>
+                    <b>min</b>:${json[0].min}<br>
+                    <b>max</b>:${json[0].max}<br>`;
+                })
+            }
+        })
+        fetch(`data/query/${fullTableName}?columns="${attrName}"`).then(response=>{
+            if (response.ok) {
+                response.json().then(json=> {
+                    let histogram, verdeling;
+                    let histLabels = [], verdLabels = [], classBorders = [];
+                    let arr;
+                    switch(attrType) {
+                        case "varchar":
+                            arr = json
+                                .map(item=>item[attrName])
+                                .filter(value=>value !== null)
+                                .sort()                            
+                            histogram = new Map();
+                            for (let i = 0; i < arr.length; i++) {
+                                const value = arr[i];
+                                const count = histogram.get(value);
+                                histogram.set(value, count?count+1:1);
+                            }
+                            histLabels = Array.from(histogram.keys());
+                            classBorders = histLabels;
+                            break;
+                        case "int4":
+                        case "int8":
+                        case "float8":
+                        case "numeric":
+                            verdeling = new Map();
+                            histogram = new Map();
+                            arr = json
+                                .map(item=>{
+                                    let result = item[attrName];
+                                    if (typeof result === "string") {
+                                        result = Number(result);
+                                        if (isNaN(result)) {
+                                            result = undefined;
+                                        }
+                                    }
+                                    return result;
+                                })
+                                .filter(value=>value !== null)
+                                .filter(value=>value !== undefined)                                
+                                .sort((value1,value2)=>value1-value2)
+                                
+                                
+                            const sampleInterval = Math.ceil(arr.length / 100);
+                            for (let i = 0; i * sampleInterval < arr.length; i++) {
+                                verdeling.set(i, arr[i*sampleInterval]);
+                                verdLabels.push(`${1 + i * sampleInterval}`);
+                            }
+                            const min = arr[0];
+                            const max = arr[arr.length - 1];
+                            const iqr = quantile(arr, 0.75) - quantile(arr, 0.25);
+                            let bins;
+                            if (max === min) {
+                                bins = 1
+                            } else {
+                                bins = Math.round((max - min) / (2 * (iqr/Math.pow(arr.length, 1/3))));
+                            }
+                            if (bins > 100) {
+                                bins = 100;
+                            }
+                            const linearTicks = getLinearTicks(min, max, bins);
+                            const binwidth = linearTicks.tickWidth;
+                            console.log(`count: ${arr.length}, min: ${min}, max: ${max}, iqr: ${iqr}, bins: ${bins}, binwidth: ${binwidth}
+linearTicks.min: ${linearTicks.min}, linearTicks.max: ${linearTicks.max}, linearTicks.tickWidth: ${linearTicks.tickWidth}`)
+                            bins = Math.ceil((linearTicks.max - linearTicks.min) / binwidth);
+                            if (bins < 1) {
+                                bins = 1;
+                            }
+                            for (let i = 0; i < bins; i++) {
+                                histogram.set(i, 0);
+                                const start = Math.round(10000 * (linearTicks.min + i * binwidth)) / 10000;
+                                const end = Math.round(10000 * (linearTicks.min + (i+1) * binwidth)) / 10000;
+                                if (linearTicks.max === linearTicks.min) {
+                                    histLabels.push(`${start}`)
+                                    classBorders.push(start);
+                                } else {
+                                    histLabels.push(`${start} - ${end}`);
+                                    classBorders.push(end);
+                                }
+                            }
+                            for (let i = 0; i < arr.length; i++) {
+                                const value = arr[i];
+                                const bin = Math.floor((value - linearTicks.min)/binwidth);
+                                histogram.set(bin, histogram.get(bin) + 1);
+                            }
+                        break;
+                    }
+                    if (histogram) {
+                        const values = Array.from(histogram.values());
+                        const canvas = document.querySelector('#histogram');
+                        const ctx = canvas.getContext('2d');
+                        if (chart1) {
+                            chart1.destroy();
+                        }
+                        chart1 = new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: histLabels,
+                                datasets: [{
+                                    label: `aantal ${tableName}`,
+                                    data: values,
+                                    backgroundColor: "blue",
+                                    borderColor: "white",
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                title: {
+                                    display: true,
+                                    position: 'bottom',
+                                    padding: 0,
+                                    text: attrName
+                                },
+                                scales: {
+                                    yAxes: [{
+                                        ticks: {
+                                            beginAtZero: true
+                                        }
+                                    }]
+                                }
+                            }
+                        });
+                        showMapLayer(fullTableName, geomType, attrName, attrType, classBorders);
+                    }
+                    if (verdeling) {
+                        const values = Array.from(verdeling.values());
+                        const canvas = document.querySelector('#verdeling');
+                        const ctx = canvas.getContext('2d');
+                        if (chart2) {
+                            chart2.destroy();
+                        }
+                        chart2 = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: verdLabels,
+                                datasets: [{
+                                    label: `${attrName}`,
+                                    data: values,
+                                    backgroundColor: "blue",
+                                    borderColor: "white",
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                title: {
+                                    display: true,
+                                    position: 'bottom',
+                                    padding: 0,
+                                    text: tableName
+                                },
+                                scales: {
+                                    yAxes: [{
+                                        ticks: {
+                                            beginAtZero: true
+                                        }
+                                    }]
+                                }
+                            }
+                        });
+                    }
+                })
+            }
+        })
+    }
+    </script>
+</head>
+<body onload="init()">
+    <h1>Attribuut-informatie</h1>
+    <h2 id="tablename"></h2>
+    <h2 id="columnname"></h2>
+    <div id="attrinfo"></div>
+    <div class="canvascontainer"><canvas id="histogram" width=1000 height=500></canvas></div>
+    <div class="canvascontainer"><canvas id="verdeling" width=1000 height=500></canvas></div>
+    <div id="map"></div>
+    <div id="info"></div>
+    <div id="layerjson"></div>
+    <div id="back"></div>
+</body>
+</html>

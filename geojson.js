@@ -1,6 +1,7 @@
 // based on https://raw.githubusercontent.com/tobinbradley/dirt-simple-postgis-http-api/master/routes/geojson.js
 
-// route query
+const sqlTableName = require('./utils/sqltablename.js');
+
 const sql = (params, query) => {
   let bounds = query.bounds ? query.bounds.split(',').map(Number) : null;
   bounds && bounds.length === 3 ? bounds = merc.bbox(bounds[1], bounds[2], bounds[0]) : null;
@@ -30,8 +31,8 @@ const sql = (params, query) => {
       ` : `'{}'::json AS properties`}
                 
     FROM   
-      ${params.table} AS lg
-      ${bounds ? `, (SELECT ST_SRID(${query.geom_column}) as srid FROM ${params.table} LIMIT 1) sq` : ''}
+      ${sqlTableName(params.table)} AS lg
+      ${bounds ? `, (SELECT ST_SRID(${query.geom_column}) as srid FROM ${sqlTableName(params.table)} LIMIT 1) sq` : ''}
       
     
     -- Optional Filter

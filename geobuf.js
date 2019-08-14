@@ -1,6 +1,7 @@
 // based on https://github.com/tobinbradley/dirt-simple-postgis-http-api/blob/master/routes/geobuf.js
 
-// route query
+const sqlTableName = require('./utils/sqltablename.js');
+
 const sql = (params, query) => {
     let bounds = query.bounds ? query.bounds.split(',').map(Number) : null
     bounds && bounds.length === 3
@@ -20,11 +21,11 @@ const sql = (params, query) => {
         ${query.columns ? `, ${query.columns}` : ''}
   
       FROM
-        ${params.table}
+        ${sqlTableName(params.table)}
         ${
           bounds
             ? `, (SELECT ST_SRID(${query.geom_column}) as srid FROM ${
-                params.table
+                sqlTableName(params.table)
               } LIMIT 1) sq`
             : ''
         }

@@ -1,3 +1,4 @@
 node_modules
 config/dbconfig.json
 public/files
+cache

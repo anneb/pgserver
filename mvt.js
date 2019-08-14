@@ -1,19 +1,42 @@
 // based on https://raw.githubusercontent.com/tobinbradley/dirt-simple-postgis-http-api/master/routes/mvt.js
+const sqlTableName = require('./utils/sqltablename.js');
+
+const DirCache = require('./utils/dircache.js')
+const cache = new DirCache('./cache/mvt');
 
 const sm = require('@mapbox/sphericalmercator');
-const fs = require('fs');
 const merc = new sm({
   size: 256
 })
 
-// route query
+let cacheMiddleWare = async(req, res, next) => {
+  const cacheDir = `${req.params.datasource}/${req.params.z}/${req.params.x}/${req.params.y}`;
+  const key = (req.query.geom_column?req.query.geom_column:'geom') + req.query.columns?','+req.query.columns:'';
+
+  const mvt = await cache.getCachedFile(cacheDir, key);
+  if (mvt) {
+    console.log(`cache hit for ${cacheDir}?${key}`);
+    if (mvt.length === 0) {
+      res.status(204)
+    }
+    res.header('Content-Type', 'application/x-protobuf').send(mvt);
+    return;
+  } else {
+    res.sendResponse = res.send;
+    res.send = (body) => {
+      cache.setCachedFile(cacheDir, key, body);
+      res.sendResponse(body);
+    }
+    next();
+  }
+}
+
 const sql = (params, query) => {
     let bounds = merc.bbox(params.x, params.y, params.z, false, '900913')
   
     return `
     SELECT 
       ST_AsMVT(q, '${params.table}', 4096, 'geom')
-    
     FROM (
       SELECT
         ${query.columns ? `${query.columns},` : ''}
@@ -23,29 +46,25 @@ const sql = (params, query) => {
       bounds[2]
     }, ${bounds[3]}))
         ) geom
-  
       FROM (
         SELECT
           ${query.columns ? `${query.columns},` : ''}
           ${query.geom_column},
           srid
         FROM 
-          ${params.table},
+          ${sqlTableName(params.table)},
           (SELECT ST_SRID(${query.geom_column}) AS srid FROM ${
-      params.table
-    } LIMIT 1) a
-          
+      sqlTableName(params.table)
+    } LIMIT 1) a    
         WHERE       
           ST_transform(
             ST_MakeEnvelope(${bounds.join()}, 3857), 
             srid
           ) && 
           ${query.geom_column}
-  
           -- Optional Filter
           ${query.filter ? `AND ${query.filter}` : ''}
       ) r
-  
     ) q
     `
   } // TODO, use sql place holders $1, $2 etc. instead of inserting user-parameters into query
@@ -101,7 +120,7 @@ module.exports = function(app, pool) {
  *       422:
  *         description: invalid datasource or columnname
  */
-    app.get('/data/:datasource/mvt/:z/:x/:y', async (req, res)=>{
+    app.get('/data/:datasource/mvt/:z/:x/:y', cacheMiddleWare, async (req, res)=>{
         if (!req.query.geom_column) {
             req.query.geom_column = 'geom'; // default
         }

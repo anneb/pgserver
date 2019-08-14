@@ -24,6 +24,7 @@ const geobuf = require('./geobuf.js')(app, readOnlyPool);
 const list_layers = require('./list_layers.js')(app, readOnlyPool);
 const layer_columns = require('./layer_columns.js')(app, readOnlyPool);
 const bbox = require('./bbox.js')(app, readOnlyPool);
+const query = require('./query.js')(app, readOnlyPool);
 
 app.listen(pgserverconfig.port);
 console.log(`pgserver listening on port ${pgserverconfig.port}`);

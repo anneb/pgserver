@@ -1,13 +1,15 @@
 // based on https://raw.githubusercontent.com/tobinbradley/dirt-simple-postgis-http-api/master/routes/bbox.js
 
-// route query
+const sqlTableName = require('./utils/sqltablename.js');
+
+
 const sql = (params, query) => {
     return `
     SELECT 
       ST_Extent(ST_Transform(${query.geom_column}, ${query.srid})) as bbox
   
     FROM 
-      ${params.table}
+      ${sqlTableName(params.table)}
   
     -- Optional where filter
     ${query.filter ? `WHERE ${query.filter}` : '' }
