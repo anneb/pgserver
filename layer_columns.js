@@ -45,15 +45,20 @@ module.exports = function (app, pool) {
       const result = await pool.query(sqlString);
       res.json(result.rows);
     } catch (err) {
+      console.log(err);
+      let status = 500;
       switch (err.code) {
-        case '42P01':
-            err.name = `table ${req.params.table} does not exist`;
-            break;
-        case '42703':
-            err.name = `column does not exist`;
-            break;
-        }
-        res.status(422).json({error: err});
+          case '42P01':
+              // table does not exist
+              status = 422;
+              break;
+          case '42703':
+              // column does not exist
+              status = 422;
+              break;
+          default:
+      }
+      res.status(status).json({error:err.message})
     }
   })
 }
