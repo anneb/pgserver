@@ -103,15 +103,19 @@ module.exports = function(app, pool) {
         res.json(result.rows[0].geojson)
       } catch(err) {
         console.log(err);
+        let status = 500;
         switch (err.code) {
             case '42P01':
-                err.name = `table ${req.params.table} does not exist`;
+                // table does not exist
+                status = 422;
                 break;
             case '42703':
-                err.name = `column does not exist`;
+                // column does not exist
+                status = 422;
                 break;
+            default:
         }
-        res.status(422).json({error:err})
+        res.status(status).json({error:err.message})
       }
   })
 }

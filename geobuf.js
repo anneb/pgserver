@@ -103,15 +103,19 @@ const sql = (params, query) => {
         res.set('Content-Type', 'text/x-protobuf').send(result.rows[0].st_asgeobuf);
       } catch(err) {
         console.log(err);
-        switch (err.code) {
-            case '42P01':
-                err.name = `table ${req.params.table} does not exist`;
-                break;
-            case '42703':
-                err.name = `column does not exist`;
-                break;
-        }
-        res.status(422).json({error:err})
+        let status = 500;
+            switch (err.code) {
+                case '42P01':
+                    // table does not exist
+                    status = 422;
+                    break;
+                case '42703':
+                    // column does not exist
+                    status = 422;
+                    break;
+                default:
+            }
+            res.status(status).json({error:err.message})
       }
     })
   }
