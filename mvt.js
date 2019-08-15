@@ -24,7 +24,9 @@ let cacheMiddleWare = async(req, res, next) => {
   } else {
     res.sendResponse = res.send;
     res.send = (body) => {
-      cache.setCachedFile(cacheDir, key, body);
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        cache.setCachedFile(cacheDir, key, body);
+      }
       res.sendResponse(body);
     }
     next();
@@ -35,33 +37,25 @@ const sql = (params, query) => {
     let bounds = merc.bbox(params.x, params.y, params.z, false, '900913')
   
     return `
-    SELECT 
-      ST_AsMVT(q, '${params.table}', 4096, 'geom')
-    FROM (
-      SELECT
-        ${query.columns ? `${query.columns},` : ''}
+    SELECT ST_AsMVT(q, '${params.table}', 4096, 'geom')
+    FROM 
+      (SELECT  ${query.columns ? `${query.columns},` : ''}
         ST_AsMVTGeom(
           ST_Transform(${query.geom_column}, 3857),
-          ST_MakeBox2D(ST_Point(${bounds[0]}, ${bounds[1]}), ST_Point(${
-      bounds[2]
-    }, ${bounds[3]}))
+          ST_MakeBox2D(ST_Point(${bounds[0]}, ${bounds[1]}), ST_Point(${bounds[2]}, ${bounds[3]}))
         ) geom
-      FROM (
-        SELECT
-          ${query.columns ? `${query.columns},` : ''}
-          ${query.geom_column},
-          srid
-        FROM 
-          ${sqlTableName(params.table)},
-          (SELECT ST_SRID(${query.geom_column}) AS srid FROM ${
-      sqlTableName(params.table)
-    } LIMIT 1) a    
-        WHERE       
-          ST_transform(
-            ST_MakeEnvelope(${bounds.join()}, 3857), 
-            srid
-          ) && 
-          ${query.geom_column}
+      FROM 
+        (SELECT ${query.columns ? `${query.columns},` : ''} ${query.geom_column}, srid
+          FROM 
+            ${sqlTableName(params.table)},
+            (SELECT ST_SRID(${query.geom_column}) AS srid FROM ${sqlTableName(params.table)} 
+              WHERE ${query.geom_column} is not null  LIMIT 1) a    
+          WHERE
+            ${query.geom_column} is not null AND
+            ST_transform(
+              ST_MakeEnvelope(${bounds.join()}, 3857), 
+              srid
+            ) && ${query.geom_column}
           -- Optional Filter
           ${query.filter ? `AND ${query.filter}` : ''}
       ) r
@@ -136,15 +130,19 @@ module.exports = function(app, pool) {
             res.header('Content-Type', 'application/x-protobuf').send(mvt);
         } catch(err) {
             console.log(err);
+            let status = 500;
             switch (err.code) {
-                case '42P01':
-                    err.name = `table ${req.params.table} does not exist`;
-                    break;
-                case '42703':
-                    err.name = `column does not exist`;
-                    break;
+              case '42P01':
+                // table does not exist
+                status = 422;
+                break;
+              case '42703':
+                // column does not exist
+                status = 422;
+                break;
+              default:
             }
-            res.status(422).json({error:err})
+            res.status(status).json({error:err.message})
         }
     })
 }
