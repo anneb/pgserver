@@ -25,8 +25,6 @@ module.exports = class DirCache {
   setCachedFile(dir, key, data) {
     const dirName = path.join(this.cacheRoot, dir);
     const filePath = path.join(dirName, key);
-    console.log(`cache dirname: ${dirName}`);
-    console.log(`filePath: ${filePath}`);
     fs.mkdirSync(dirName, {recursive: true});
     return new Promise((resolve, reject) => {
       fs.writeFile(filePath, data, (err) => {
@@ -55,7 +53,7 @@ function cacheDirName(params) {
     const dirname = cacheDirName(params);
     const filename = cacheFileName(query);
     
-    console.log(`getCache: ${dirname}`);
+    //console.log(`getCache: ${dirname}`);
     return fsPromises.readFile(`${dirname}/${filename}`)
       .then(data=>data)
       .catch(error=>null);
@@ -65,7 +63,7 @@ function cacheDirName(params) {
     const dirname = cacheDirName(params);
     const filename = cacheFileName(query);
     
-    console.log(`setCache: ${dirname}`);
+    //console.log(`setCache: ${dirname}`);
     return fsPromises.writeFile(`${dirname}/${filename}`, data)
       .then(() => {return})
       .catch(err=>err);
