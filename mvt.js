@@ -2,7 +2,7 @@
 const sqlTableName = require('./utils/sqltablename.js');
 
 const DirCache = require('./utils/dircache.js')
-const cache = new DirCache('./cache/mvt');
+const cache = new DirCache('./cache');
 
 const sm = require('@mapbox/sphericalmercator');
 const merc = new sm({
@@ -10,8 +10,9 @@ const merc = new sm({
 })
 
 let cacheMiddleWare = async(req, res, next) => {
-  const cacheDir = `${req.params.datasource}/${req.params.z}/${req.params.x}/${req.params.y}`;
-  const key = (req.query.geom_column?req.query.geom_column:'geom') + req.query.columns?','+req.query.columns:'';
+  const cacheDir = `${req.params.datasource}/mvt/${req.params.z}/${req.params.x}/${req.params.y}`;
+  const key = ((req.query.geom_column?req.query.geom_column:'geom') + (req.query.columns?','+req.query.columns:''))
+    .replace(/[\W]+/g, '_');
 
   const mvt = await cache.getCachedFile(cacheDir, key);
   if (mvt) {

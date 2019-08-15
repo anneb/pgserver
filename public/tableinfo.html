@@ -24,7 +24,7 @@
         document.querySelector('#tablename').innerHTML = fullTableName;
         const parts = fullTableName.split('.');
         const tableName = (parts.length > 1) ? parts[1] : parts[0];
-        fetch(`data/layer_columns/${tableName}`).then(response=>{
+        fetch(`data/layer_columns/${fullTableName}`).then(response=>{
             const list = document.querySelector('#columns');
             if (response.ok) {
                 response.json().then(json=> {
