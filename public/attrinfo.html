@@ -73,7 +73,7 @@
 
     function initMap()
     {
-        map = new mapboxgl.Map({
+        const mapDefinition = {
             container: 'map',
             "style": {
                 "version": 8,
@@ -98,7 +98,13 @@
                     }
                 ]
             }
-        });
+        }
+        const urlParams = new URLSearchParams(window.location.search);
+        const bboxll = urlParams.get('bboxll');
+        if (bboxll) {
+            mapDefinition.bounds = JSON.parse(bboxll);
+        }
+        map = new mapboxgl.Map(mapDefinition);
         map.on('mousemove', function (e) {
             var features = map.queryRenderedFeatures(e.point).map(function(feature){ return {layer: {id: feature.layer.id, type: feature.layer.type}, properties:(feature.properties)};});
             document.getElementById('info').innerHTML = JSON.stringify(features.map(feature=>feature.properties), null, 2);

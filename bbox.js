@@ -75,8 +75,16 @@ module.exports = function(app, pool) {
             srid: row.srid,
             bboxsrid: row.bboxsrid?row.bboxsrid.match(/BOX\((.*)\)/)[1].split(',').map(coord=>coord.split(' ').map(c=>parseFloat(c))):null
           })
+        } else if (result.rows.length === 0) {
+          res.json({
+            allrows: 0,
+            geomrows: 0,
+            bboxll: null,
+            srid: 0,
+            bboxsrid: null
+          })
         } else {
-          throw(new Error('bbox query did not return 1 row'));
+          throw(new Error('bbox query returned more than 1 row'));
         }
       } catch(err) {
         console.log(err);

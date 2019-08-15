@@ -6,12 +6,21 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Info</title>
     <script>
+
+    function addBboxllToLinks(bboxll)
+    {
+        if (bboxll) {
+            document.querySelectorAll('#columns > li > a')
+                .forEach(a=>(a.setAttribute('href', a.getAttribute('href') + '&bboxll='+JSON.stringify(bboxll))))
+        }
+    }
     
     function init() {
         const urlParams = new URLSearchParams(window.location.search);
         const fullTableName = urlParams.get('table');
         const geomType = urlParams.get('geomtype');
-        const geomcolumn = urlParams.get('geom_column')
+        const geomcolumn = urlParams.get('geom_column');
+        let bboxll = null;
         document.querySelector('#tablename').innerHTML = fullTableName;
         const parts = fullTableName.split('.');
         const tableName = (parts.length > 1) ? parts[1] : parts[0];
@@ -35,11 +44,12 @@
             const bbox = document.querySelector('#bbox');
             if (response.ok) {
                 response.json().then(json=> {
+                    addBboxllToLinks(json.bboxll);
                     bbox.innerHTML = `number of rows: ${json.allrows}<br>
                                       number of geometries: ${json.geomrows}<br>
                                       srid: EPSG:${json.srid}<br>
-                                      bbox lon/lat: sw: ${json.bboxll[0][0]},${json.bboxll[0][1]}, ne: ${json.bboxll[1][0]},${json.bboxll[1][1]}<br>
-                                      bbox (EPSG:${json.srid}): ll: ${json.bboxsrid[0][0]},${json.bboxsrid[0][1]}, tr: ${json.bboxsrid[1][0]},${json.bboxsrid[1][1]}<br>
+                                      bbox lon/lat: ${json.bboxll?`sw: ${json.bboxll[0][0]},${json.bboxll[0][1]}, ne: ${json.bboxll[1][0]},${json.bboxll[1][1]}`: 'not defined'}<br>
+                                      bbox (EPSG:${json.srid}): ${json.srid?`ll: ${json.bboxsrid[0][0]},${json.bboxsrid[0][1]}, tr: ${json.bboxsrid[1][0]},${json.bboxsrid[1][1]}`: 'not defined'}<br>
                                       `
                 })
             } else {
