@@ -4,16 +4,18 @@ const sqlTableName = require('./utils/sqltablename.js');
 
 
 const sql = (params, query) => {
-    return `
-    SELECT 
-      ST_Extent(ST_Transform(${query.geom_column}, ${query.srid})) as bbox
-  
-    FROM 
-      ${sqlTableName(params.table)}
-  
+  return `
+with srid as 
+  (select st_srid(${query.geom_column}) srid from ${sqlTableName(params.table)} where ${query.geom_column} is not null limit 1)
+,bboxll as 
+(select ST_Extent(ST_Transform(${query.geom_column}, 4326)) as bboxll, count(*) allrows, count(${query.geom_column}) geomrows from ${sqlTableName(params.table)}
     -- Optional where filter
     ${query.filter ? `WHERE ${query.filter}` : '' }
-    `
+)
+,bboxsrid as
+(select st_extent(st_transform(st_setsrid(st_envelope(bboxll),4326),srid)) bboxsrid from bboxll,srid)
+select allrows, geomrows, bboxll,srid,bboxsrid from bboxll,srid,bboxsrid
+      `
 }
 
 module.exports = function(app, pool) {
@@ -64,10 +66,21 @@ module.exports = function(app, pool) {
       const sqlString = sql(req.params, req.query);
       try {
         const result = await pool.query(sqlString);
-        res.json(result.rows);
+        if (result.rows.length === 1) {
+          const row = result.rows[0];
+          res.json({
+            allrows: Number(row.allrows), 
+            geomrows: Number(row.geomrows),
+            bboxll: row.bboxll?row.bboxll.match(/BOX\((.*)\)/)[1].split(',').map(coord=>coord.split(' ').map(c=>parseFloat(c))):null,
+            srid: row.srid,
+            bboxsrid: row.bboxsrid?row.bboxsrid.match(/BOX\((.*)\)/)[1].split(',').map(coord=>coord.split(' ').map(c=>parseFloat(c))):null
+          })
+        } else {
+          throw(new Error('bbox query did not return 1 row'));
+        }
       } catch(err) {
         console.log(err);
-        res.status(500).json({error: err});
+        res.status(500).json({error: err.message});
       }
   })
 }
