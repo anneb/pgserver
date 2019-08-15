@@ -11,6 +11,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const fullTableName = urlParams.get('table');
         const geomType = urlParams.get('geomtype');
+        const geomcolumn = urlParams.get('geom_column')
         document.querySelector('#tablename').innerHTML = fullTableName;
         const parts = fullTableName.split('.');
         const tableName = (parts.length > 1) ? parts[1] : parts[0];
@@ -20,7 +21,7 @@
                 response.json().then(json=> {
                     for (item of json) {
                         const li = document.createElement('li');
-                        li.innerHTML = `<a href="./attrinfo.html?table=${fullTableName}&column=${item.field_name}&columntype=${item.field_type}&geomtype=${geomType}"><b>${item.field_name}</b></a> (${item.field_type})`
+                        li.innerHTML = `<a href="./attrinfo.html?table=${fullTableName}&geom_column=${geomcolumn?geomcolumn:''}&column=${item.field_name}&columntype=${item.field_type}&geomtype=${geomType}"><b>${item.field_name}</b></a> (${item.field_type})`
                         list.appendChild(li);
                     }
                 })
@@ -30,14 +31,16 @@
                 list.appendChild(li);
             }
         })
-        fetch(`api/bbox/${fullTableName}`).then(response=>{
+        fetch(`api/bbox/${fullTableName}${geomcolumn?`?geom_column=${geomcolumn}`:''}`).then(response=>{
             const bbox = document.querySelector('#bbox');
             if (response.ok) {
                 response.json().then(json=> {
-                    bbox.innerHTML = "";
-                    for (item of json) {
-                        bbox.innerHTML += item.bbox;  
-                    }
+                    bbox.innerHTML = `number of rows: ${json.allrows}<br>
+                                      number of geometries: ${json.geomrows}<br>
+                                      srid: EPSG:${json.srid}<br>
+                                      bbox lon/lat: sw: ${json.bboxll[0][0]},${json.bboxll[0][1]}, ne: ${json.bboxll[1][0]},${json.bboxll[1][1]}<br>
+                                      bbox (EPSG:${json.srid}): ll: ${json.bboxsrid[0][0]},${json.bboxsrid[0][1]}, tr: ${json.bboxsrid[1][0]},${json.bboxsrid[1][1]}<br>
+                                      `
                 })
             } else {
                 bbox.innerHTML = `Error getting bbox, response: response: ${response.status} ${response.statusText?response.statusText:''} ${response.url}`
@@ -47,10 +50,10 @@
     </script>
 </head>
 <body onload="init()">
-    <h1>Layer informatie</h1>
+    <h1>Layer info</h1>
     <h2 id="tablename"></h2>
-    <div id="bbox">waiting for bbox...</div>
+    <div id="bbox">waiting for table stats...</div>
     <ul id="columns"></ul>
-    <a href="info.html">Terug naar layer overzicht</a>
+    <a href="info.html">Back to layer overviewe</a>
 </body>
 </html>

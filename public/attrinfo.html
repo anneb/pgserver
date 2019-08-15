@@ -140,7 +140,7 @@
         return result;
     }
 
-    function showMapLayer(fullTableName, geomType, attrName, attrType, classLabels) {
+    function showMapLayer(fullTableName, geomColumn, geomType, attrName, attrType, classLabels) {
         let layerType, paint;
         const classLabelAndColors = classLabels.reduce((result, key, index)=>{
             result.push(key);
@@ -210,7 +210,7 @@
         }
         if (layerType){
             const baseUrl = new URL(`/data`, window.location.href).href;
-            const url = `${baseUrl}/${fullTableName}/mvt/{z}/{x}/{y}?columns="${attrName}"`
+            const url = `${baseUrl}/${fullTableName}/mvt/{z}/{x}/{y}?columns="${attrName}"${geomColumn?`&geom_column=${geomColumn}`:''}`
             console.log(`url: ${url}`);
             const layer = {
                 "id": "attrlayer",
@@ -236,6 +236,7 @@
         const attrName = urlParams.get("column");
         const attrType = urlParams.get("columntype");
         const geomType = urlParams.get('geomtype');
+        const geomColumn = urlParams.get('geom_column');
         document.querySelector('#tablename').innerHTML = fullTableName;
         document.querySelector('#columnname').innerHTML = `${attrName} (${attrType})`;
         document.querySelector('#back').innerHTML = `<a href="tableinfo.html?table=${fullTableName}">Terug naar layer informatie</a>`
@@ -374,7 +375,7 @@ linearTicks.min: ${linearTicks.min}, linearTicks.max: ${linearTicks.max}, linear
                                 }
                             }
                         });
-                        showMapLayer(fullTableName, geomType, attrName, attrType, classBorders);
+                        showMapLayer(fullTableName, geomColumn, geomType, attrName, attrType, classBorders);
                     }
                     if (verdeling) {
                         const values = Array.from(verdeling.values());
