@@ -10,7 +10,8 @@ const sql = () => {
       COALESCE(postgis_typmod_dims(a.atttypmod), sn.ndims, 2) AS coord_dimension,
       COALESCE(NULLIF(postgis_typmod_srid(a.atttypmod), 0), sr.srid, 0) AS srid,
       replace(replace(COALESCE(NULLIF(upper(postgis_typmod_type(a.atttypmod)), 'GEOMETRY'::text), st.type, 'GEOMETRY'::text), 'ZM'::text, ''::text), 'Z'::text, ''::text)::character varying(30) AS type,
-      ((c.reltuples/case when c.relpages=0 then 1 else c.relpages end) * (pg_relation_size(c.oid) / (current_setting('block_size')::integer)))::bigint as estimated_rows
+      ((c.reltuples/case when c.relpages=0 then 1 else c.relpages end) * (pg_relation_size(c.oid) / (current_setting('block_size')::integer)))::bigint as estimated_rows,
+      case when relkind='r' then 'table' when relkind='v' then 'view' when relkind='m' then 'mview' when relkind='f' then 'ftable' else 'other(' || relkind || ')' end table_type
      FROM pg_class c
        JOIN pg_attribute a ON a.attrelid = c.oid AND NOT a.attisdropped
        JOIN pg_namespace n ON c.relnamespace = n.oid
@@ -53,6 +54,39 @@ const sql = () => {
  *     responses:
  *       200:
  *         description: list of layers
+ *         content:
+ *            application/json
+ *         schema:
+ *            type: array
+ *            items:
+ *              type: object
+ *              properties:
+ *                   f_table_catalog:
+ *                      description: name of database (group of tables)
+ *                      type: string
+ *                   f_table_schema:
+ *                      description: schema name (sub-group of tables)
+ *                      type: string
+ *                   f_table_name:
+ *                      description: name of table or view
+ *                      type: string
+ *                   f_geometry_column:
+ *                      description: name of geometry column for geometries
+ *                      type: string
+ *                   coord_dimension:
+ *                      description: number of dimensions, usually 2 or 3
+ *                      type: integer
+ *                   srid:
+ *                      description: EPSG id of spatial reference system (4326=WGS 84/GPS coordinates, 3857=webmercator coordinates)
+ *                      type: integer
+ *                   estimated_rows:
+ *                      description: estimated number of rows in table, 0 (unknown) for views or foreign tables
+ *                      type: integer
+ *                   table_type:
+ *                      description: type of table, 1 of 'table', 'view', 'mview' (material view), 'ftable' (foreign table), 'other'
+ *                      type: string
+ *       500:
+ *         description: unexpected error
  */
       app.get('/data/list_layers', async (req, res)=>{
         try {
@@ -61,7 +95,7 @@ const sql = () => {
             const layers = result.rows
             res.json(layers)
         } catch(err) {
-            res.json({error: err})
+            res.status(500).json({error: err.message})
         }
       })
   }

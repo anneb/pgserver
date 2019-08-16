@@ -27,6 +27,9 @@
             case 'dim': 
               fieldname = 'coord_dimension';
               break;
+            case 'type':
+              fieldname = 'table_type';
+              break;
             case 'count':
               fieldname = 'estimated_rows'
               break;
@@ -52,6 +55,7 @@
                 break;
             case 'f_geometry_column':
             case 'type':
+            case 'table_type':
             case 'coord_dimension':
                 layerInfo.sort((item1, item2) => ('' + item1[field] + '.' +  item1.f_table_schema + '.' + item1.f_table_name).localeCompare(item2[field] + '.' + item2.f_table_schema + '.' + item2.f_table_name));
                 break;
@@ -64,7 +68,7 @@
         if (!ascending) {
             layerInfo.reverse();
         }            
-        table.innerHTML = '<tr><th>schema</th><th>name</th><th>geom_column</th><th>srid</th><th>geom_type</th><th>dim</th><th>count</th></tr>' +
+        table.innerHTML = '<tr><th>schema</th><th>name</th><th>geom_column</th><th>srid</th><th>geom_type</th><th>dim</th><th>type</th><th>count</th></tr>' +
             layerInfo.map(item=>`<tr>
                 <td>${item.f_table_schema}</td>
                 <td><a href="tableinfo.html?table=${item.f_table_schema}.${item.f_table_name}&geom_column=${item.f_geometry_column}&srid=${item.srid}&geomtype=${item.type}&dimensions=${item.coord_dimension}&estimated_rows=${item.estimated_rows}">${item.f_table_name}</a></td>
@@ -72,6 +76,7 @@
                 <td>${item.srid}</td>
                 <td>${item.type}</td>
                 <td>${item.coord_dimension}D</td>
+                <td>${item.table_type}</td>
                 <td>${item.estimated_rows}</td></tr>`).join('\n');
         const tableHeaders = document.querySelectorAll('tr > th');
         for (let i = 0; i < tableHeaders.length; i++) {
