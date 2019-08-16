@@ -252,10 +252,10 @@
             if (response.ok) {
                 response.json().then(json=> {
                     const div = document.querySelector('#attrinfo');
-                    div.innerHTML = `<b>aantal</b>:${json[0].count}<br>
-                    <b>verschillend</b>:${json[0].distinct}<br>
-                    <b>min</b>:${json[0].min}<br>
-                    <b>max</b>:${json[0].max}<br>`;
+                    div.innerHTML = `<b>count</b>:${json[0].count}<br>
+                    <b>nr of unique values</b>:${json[0].distinct}<br>
+                    <b>minimum</b>:${json[0].min}<br>
+                    <b>maximum</b>:${json[0].max}<br>`;
                 })
             }
         })
@@ -358,7 +358,7 @@ linearTicks.min: ${linearTicks.min}, linearTicks.max: ${linearTicks.max}, linear
                             data: {
                                 labels: histLabels,
                                 datasets: [{
-                                    label: `aantal ${tableName}`,
+                                    label: `count of ${tableName}`,
                                     data: values,
                                     backgroundColor: "blue",
                                     borderColor: "white",
@@ -426,7 +426,7 @@ linearTicks.min: ${linearTicks.min}, linearTicks.max: ${linearTicks.max}, linear
     </script>
 </head>
 <body onload="init()">
-    <h1>Attribuut-informatie</h1>
+    <h1>Attribuut-information</h1>
     <h2 id="tablename"></h2>
     <h2 id="columnname"></h2>
     <div id="attrinfo"></div>

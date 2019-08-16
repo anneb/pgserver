@@ -67,7 +67,7 @@
         table.innerHTML = '<tr><th>schema</th><th>name</th><th>geom_column</th><th>srid</th><th>geom_type</th><th>dim</th><th>count</th></tr>' +
             layerInfo.map(item=>`<tr>
                 <td>${item.f_table_schema}</td>
-                <td>${Number(item.estimated_rows)?`<a href="tableinfo.html?table=${item.f_table_schema}.${item.f_table_name}&geom_column=${item.f_geometry_column}&srid=${item.srid}&geomtype=${item.type}&dimensions=${item.coord_dimension}&estimated_rows=${item.estimated_rows}">${item.f_table_name}</a>`:`${item.f_table_name}`}</td>
+                <td><a href="tableinfo.html?table=${item.f_table_schema}.${item.f_table_name}&geom_column=${item.f_geometry_column}&srid=${item.srid}&geomtype=${item.type}&dimensions=${item.coord_dimension}&estimated_rows=${item.estimated_rows}">${item.f_table_name}</a></td>
                 <td>${item.f_geometry_column}</td>
                 <td>${item.srid}</td>
                 <td>${item.type}</td>
