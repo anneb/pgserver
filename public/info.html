@@ -6,8 +6,9 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Info</title>
     <script>
-    let layerInfo = null;
-    let prevFieldname = '';
+    let layerInfo = allLayerInfo = null;
+    let sortFieldName = '';
+    let sortAscending = true;
 
     function sortBy(name) {
         let fieldname;
@@ -36,12 +37,14 @@
             default:
               fieldname = name;
         }
-        updateLayerInfo(fieldname, fieldname != prevFieldname);
-        if (prevFieldname != fieldname) {
-            prevFieldname = fieldname;
+        
+        if (sortFieldName != fieldname) {
+            sortFieldName = fieldname;
+            sortAscending = true;
         } else {
-            prevFieldname = '';
+            sortAscending = !sortAscending;
         }
+        updateLayerInfo(fieldname, sortAscending);
     }
 
     function updateLayerInfo(field, ascending) {
@@ -84,20 +87,46 @@
         }
     }
 
+    function filterLayerInfo() {
+        const filterWords = document.querySelector('#filter')
+            .value.split(' ')
+            .filter(word=>word !== '')
+            .map(word=>word.toLocaleLowerCase());
+        if (filterWords.length) {
+            layerInfo = allLayerInfo.filter(layer=>{
+                const layerText = Object.values(layer).join(' ').toLocaleLowerCase();
+                return filterWords.filter(word=>layerText.indexOf(word)>-1).length == filterWords.length;
+            })
+        } else {
+            layerInfo = allLayerInfo;
+        }
+        updateLayerInfo(sortFieldName, sortAscending);
+    }
+
     function init() {
         fetch('data/list_layers').then(response=>{
             if (response.ok) {
                 response.json().then(json=> {
-                    layerInfo  = json;
+                    layerInfo = allLayerInfo = json;
+                    filterLayerInfo();
                     sortBy('schema');
                 })
+            } else {
+                layerInfo = allLayerInfo = [];
+                response.json().then(json =>{
+                    document.querySelector('#layerinfo').innerHTML = `<tr><td>Error fetching layers: ${json.error}</td></tr>`
+                }).catch(err => {
+                    document.querySelector('#layerinfo').innerHTML = `<tr><td>Error fetching layers: ${err}</td></tr>`
+                });
             }
         })
     }
+
     </script>
 </head>
 <body onload="init()">
-    <h1>Vector layers in database</h1>
+    <h1>Layers in database</h1>
+    <input id="filter" type="text" placeholder="Filter.." size="20" oninput="filterLayerInfo()"><br>
     <table id="layerinfo"></table>
 </body>
 </html>
