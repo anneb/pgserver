@@ -19,7 +19,7 @@ If you don't have git, you can donwload [a zip file](https://github.com/anneb/pg
      npm install
      cp config/dbconfig.example.json config/dbconfig.json
      # now edit config/dbconfig.json for your PostGis database
-     npm start
+     node pgserver.js
      # point your browser to localost:8090 for more info
 
 For interactive data browsing, preview, administration and api documentation, head to [http://localhost:8090](http://localhost:8090).

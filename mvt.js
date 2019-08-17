@@ -1,37 +1,16 @@
 // based on https://raw.githubusercontent.com/tobinbradley/dirt-simple-postgis-http-api/master/routes/mvt.js
 const sqlTableName = require('./utils/sqltablename.js');
 
-const DirCache = require('./utils/dircache.js')
-const cache = new DirCache('./cache');
-
 const sm = require('@mapbox/sphericalmercator');
 const merc = new sm({
   size: 256
 })
 
-let cacheMiddleWare = async(req, res, next) => {
-  const cacheDir = `${req.params.datasource}/mvt/${req.params.z}/${req.params.x}/${req.params.y}`;
-  const key = ((req.query.geom_column?req.query.geom_column:'geom') + (req.query.columns?','+req.query.columns:''))
-    .replace(/[\W]+/g, '_');
-
-  const mvt = await cache.getCachedFile(cacheDir, key);
-  if (mvt) {
-    console.log(`cache hit for ${cacheDir}?${key}`);
-    if (mvt.length === 0) {
-      res.status(204)
-    }
-    res.header('Content-Type', 'application/x-protobuf').send(mvt);
-    return;
-  } else {
-    res.sendResponse = res.send;
-    res.send = (body) => {
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        cache.setCachedFile(cacheDir, key, body);
-      }
-      res.sendResponse(body);
-    }
-    next();
-  }
+function queryColumnsNotNull(queryColumns) {
+  if (queryColumns) {
+    return ` and (${queryColumns.split(',').map(column=>`${column} is not null`).join(' or ')})`
+  } 
+  return ''
 }
 
 const sql = (params, query) => {
@@ -57,17 +36,45 @@ const sql = (params, query) => {
               ST_MakeEnvelope(${bounds.join()}, 3857), 
               srid
             ) && ${query.geom_column}
+            ${queryColumnsNotNull(query.columns)}
           -- Optional Filter
           ${query.filter ? `AND ${query.filter}` : ''}
       ) r
     ) q
     `
   } // TODO, use sql place holders $1, $2 etc. instead of inserting user-parameters into query
+
+module.exports = function(app, pool, cache) {
+
+  let cacheMiddleWare = async(req, res, next) => {
+    if (!cache) {
+      next();
+      return;
+    }
+    const cacheDir = `${req.params.datasource}/mvt/${req.params.z}/${req.params.x}/${req.params.y}`;
+    const key = ((req.query.geom_column?req.query.geom_column:'geom') + (req.query.columns?','+req.query.columns:''))
+      .replace(/[\W]+/g, '_');
   
-
-// TODO add flat-cache
-
-module.exports = function(app, pool) {
+    const mvt = await cache.getCachedFile(cacheDir, key);
+    if (mvt) {
+      console.log(`cache hit for ${cacheDir}?${key}`);
+      if (mvt.length === 0) {
+        res.status(204)
+      }
+      res.header('Content-Type', 'application/x-protobuf').send(mvt);
+      return;
+    } else {
+      res.sendResponse = res.send;
+      res.send = (body) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          cache.setCachedFile(cacheDir, key, body);
+        }
+        res.sendResponse(body);
+      }
+      next();
+    }
+  }
+  
  /**
  * @swagger
  *
@@ -121,7 +128,7 @@ module.exports = function(app, pool) {
         }
         req.params.table = req.params.datasource;
         const sqlString = sql(req.params, req.query);
-        //console.log(sqlString);
+        // console.log(sqlString);
         try {
             const result = await pool.query(sqlString);
             const mvt = result.rows[0].st_asmvt

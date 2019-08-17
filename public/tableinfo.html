@@ -33,6 +33,22 @@
                         li.innerHTML = `<a href="./attrinfo.html?table=${fullTableName}&geom_column=${geomcolumn?geomcolumn:''}&column=${item.field_name}&columntype=${item.field_type}&geomtype=${geomType}"><b>${item.field_name}</b></a> (${item.field_type})`
                         list.appendChild(li);
                     }
+                    fetch(`api/bbox/${fullTableName}${geomcolumn?`?geom_column=${geomcolumn}`:''}`).then(response=>{
+                        const bbox = document.querySelector('#bbox');
+                        if (response.ok) {
+                            response.json().then(json=> {
+                                addBboxllToLinks(json.bboxll);
+                                bbox.innerHTML = `number of rows: ${json.allrows}<br>
+                                                number of geometries: ${json.geomrows}<br>
+                                                srid: EPSG:${json.srid}<br>
+                                                bbox lon/lat: ${json.bboxll?`sw: ${json.bboxll[0][0]},${json.bboxll[0][1]}, ne: ${json.bboxll[1][0]},${json.bboxll[1][1]}`: 'not defined'}<br>
+                                                bbox (EPSG:${json.srid}): ${json.srid?`ll: ${json.bboxsrid[0][0]},${json.bboxsrid[0][1]}, tr: ${json.bboxsrid[1][0]},${json.bboxsrid[1][1]}`: 'not defined'}<br>
+                                                `
+                            })
+                        } else {
+                            bbox.innerHTML = `Error getting bbox, response: response: ${response.status} ${response.statusText?response.statusText:''} ${response.url}`
+                        }
+                    })
                 })
             } else {
                 const li = document.createElement('li');
@@ -40,22 +56,7 @@
                 list.appendChild(li);
             }
         })
-        fetch(`api/bbox/${fullTableName}${geomcolumn?`?geom_column=${geomcolumn}`:''}`).then(response=>{
-            const bbox = document.querySelector('#bbox');
-            if (response.ok) {
-                response.json().then(json=> {
-                    addBboxllToLinks(json.bboxll);
-                    bbox.innerHTML = `number of rows: ${json.allrows}<br>
-                                      number of geometries: ${json.geomrows}<br>
-                                      srid: EPSG:${json.srid}<br>
-                                      bbox lon/lat: ${json.bboxll?`sw: ${json.bboxll[0][0]},${json.bboxll[0][1]}, ne: ${json.bboxll[1][0]},${json.bboxll[1][1]}`: 'not defined'}<br>
-                                      bbox (EPSG:${json.srid}): ${json.srid?`ll: ${json.bboxsrid[0][0]},${json.bboxsrid[0][1]}, tr: ${json.bboxsrid[1][0]},${json.bboxsrid[1][1]}`: 'not defined'}<br>
-                                      `
-                })
-            } else {
-                bbox.innerHTML = `Error getting bbox, response: response: ${response.status} ${response.statusText?response.statusText:''} ${response.url}`
-            }
-        })
+        
     }
     </script>
 </head>

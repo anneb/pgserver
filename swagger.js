@@ -23,7 +23,17 @@ const swaggerDefinition = {
 
 const swaggerJSDocOptions = {
     swaggerDefinition,
-    apis: ['./login.js', './mvt.js', './list_layers.js', './layer_columns.js', './bbox.js', './geojson.js', './geobuf.js', './query.js']
+    apis: [
+      './login.js', 
+      './mvt.js', 
+      './list_layers.js', 
+      './layer_columns.js', 
+      './bbox.js', 
+      './geojson.js', 
+      './geobuf.js', 
+      './query.js',
+      './column_stats.js'
+    ]
 }
 
 const swaggerSpec = swaggerJSDoc(swaggerJSDocOptions);

@@ -245,7 +245,7 @@
         const geomColumn = urlParams.get('geom_column');
         document.querySelector('#tablename').innerHTML = fullTableName;
         document.querySelector('#columnname').innerHTML = `${attrName} (${attrType})`;
-        document.querySelector('#back').innerHTML = `<a href="tableinfo.html?table=${fullTableName}">Terug naar layer informatie</a>`
+        document.querySelector('#back').innerHTML = `<a href="tableinfo.html?table=${fullTableName}&geom_column=${geomColumn}">Terug naar layer informatie</a>`
         const parts = fullTableName.split('.');
         const tableName = (parts.length > 1) ? parts[1] : parts[0];
         fetch(`data/query/${fullTableName}?columns=count("${attrName}"),count(distinct+"${attrName}")+as+distinct,min("${attrName}"),max("${attrName}")`).then(response=>{
