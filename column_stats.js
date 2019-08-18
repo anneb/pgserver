@@ -2,12 +2,56 @@ const sqlTableName = require('./utils/sqltablename.js');
 
 const sql = (params, query) => {
     return `
-      select count(1)::integer as "count", ${params.column} as "value"
-        from ${params.table} 
+      select count(1)::integer as "count", "${params.column}" as "value"
+        from ${sqlTableName(params.table)} 
           where ${query.geom_column} is not null 
-            group by ${params.column} order by count(1) desc limit 2000;
+            group by "${params.column}" order by count(1) desc limit 100;
     `
   } // TODO, use sql place holders $1, $2 etc. instead of inserting user-parameters into query
+
+// https://leafo.net/guides/postgresql-calculating-percentile.html
+const sqlPercentiles = (params, query) => {
+  return `
+  select min(buckets.value) "from", max(buckets.value) "to", count(ntile)::integer "count", ntile as percentile
+    from
+      (select "${params.column}" as value, ntile(100) over (order by "${params.column}") 
+        from ${sqlTableName(params.table)} 
+          where "${params.column}" is not null and ${query.geom_column} is not null) 
+      as buckets
+    group by ntile order by ntile;
+  `
+}
+
+const sqlPercentilesBoolean = (params, query) => {
+  return `
+  select case when min(buckets.value) = 0 then false else true end "from", case when max(buckets.value) = 0 then false else true end "to", count(ntile)::integer "count", ntile as percentile
+    from
+      (select "${params.column}"::integer as value, ntile(100) over (order by "${params.column}") 
+        from ${sqlTableName(params.table)} 
+          where "${params.column}" is not null and ${query.geom_column} is not null) 
+      as buckets
+    group by ntile order by ntile;
+  `
+}
+
+let typeMap = null;
+async function getTypeName(id, pool) {
+  if (!typeMap) {
+    const sql = "select oid,typname from pg_type  where oid < 1000000 order by oid";
+    try {
+      const queryResult = await pool.query(sql);
+      typeMap = new Map(queryResult.rows.map(row=>[row.oid, row.typname]));
+    } catch(err) {
+      console.log(`error loading types: ${err}`);
+      return id.toString();
+    }
+  }
+  const result = typeMap.get(id);
+  if (!result) {
+    return id.toString();
+  }
+  return result;
+}
 
 module.exports = function(app, pool, cache) {
 
@@ -16,7 +60,7 @@ module.exports = function(app, pool, cache) {
       next();
       return;
     }
-    const cacheDir = `${req.params.table}/attrstats/`;
+    const cacheDir = `${req.params.table}/colstats/`;
     const key = ((req.query.geom_column?req.query.geom_column:'geom') + (req.params.column?','+req.params.column:''))
       .replace(/[\W]+/g, '_');
   
@@ -108,22 +152,49 @@ module.exports = function(app, pool, cache) {
         if (!req.query.geom_column) {
             req.query.geom_column = 'geom'; // default
         }
-        const sqlString = sql(req.params, req.query);
+        let sqlString = sql(req.params, req.query);
         //console.log(sqlString);
         try {
-            const result = await pool.query(sqlString);
-            const stats = result.rows
-            if (stats.length === 0) {
-                res.status(204).json({});
-                return;
+            let queryResult = await pool.query(sqlString);
+            let datatype = await getTypeName(queryResult.fields[1].dataTypeID, pool);
+            if (datatype === "numeric" || datatype === "int8") {
+              // numeric datatype, try to convert to Number
+              try {
+                queryResult.rows = queryResult.rows.map(row=>{row.value=row.value?Number(row.value):row.value; return row});
+              } catch(err) {
+                // failed Numeric conversion
+              }
             }
-            res.json({
+            const stats = queryResult.rows
+            const result = {
               table: req.params.table,
               column: req.params.column,
+              datatype: datatype,
               numvalues: stats.length < 2000?stats.length:null,
-              uniquevalues: stats[0].value !== null?stats[0].count === 1:stats.length>1?stats[1].count === 1:false,
+              uniquevalues: stats.length?stats[0].value !== null?stats[0].count === 1:stats.length>1?stats[1].count === 1:false:[],
               values: stats
-            })
+            }
+            if (stats.length === 0) {
+              result.percentiles = [];
+              res.json(result);
+              return;
+            }
+            if (datatype === "bool") {
+              sqlString = sqlPercentilesBoolean(req.params, req.query);
+            } else {
+              sqlString = sqlPercentiles(req.params, req.query);
+            }
+            queryResult = await pool.query(sqlString);
+            if (datatype === "numeric" || datatype === "int8") {
+              // numeric datatype, try to convert to Number
+              try {
+                queryResult.rows = queryResult.rows.map(row=>{row.from=Number(row.from); row.to=Number(row.to); return row});
+              } catch(err) {
+                // failed Numeric conversion
+              }
+            }
+            result.percentiles = queryResult.rows;
+            res.json(result);
         } catch(err) {
             console.log(err);
             let status = 500;

@@ -46,13 +46,21 @@
                                                 `
                             })
                         } else {
-                            bbox.innerHTML = `Error getting bbox, response: response: ${response.status} ${response.statusText?response.statusText:''} ${response.url}`
+                            response.json().then(json=>{
+                                bbox.innerHTML = `Error getting bbox: ${json.error}`;
+                            }).catch(err => {
+                                bbox.innerHTML = `Error parsing bbox: ${err}`;
+                            })
                         }
                     })
                 })
             } else {
                 const li = document.createElement('li');
-                li.innerHTML = `Error getting list, response: ${response.status} ${response.statusText?response.statusText:''} ${response.url}`
+                response.json().then(json=>{
+                    li.innerHTML = `Error getting column info: ${json.error}`;
+                }).catch(err => {
+                    li.innerHTML = `Error parsing column info: ${err}`;
+                })
                 list.appendChild(li);
             }
         })
