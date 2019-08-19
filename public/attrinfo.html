@@ -18,7 +18,10 @@
             flex-direction: column;
             justify-content: space-between;
         }
-        #feaureinfo {display: inline-block;}
+        #featureinfo {
+            display: inline-block;
+            max-width: 400px;
+        }
         #attrinfo { 
             display: flex; 
             flex-wrap: wrap;
@@ -31,10 +34,12 @@
     <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.2.0/mapbox-gl.js'></script>
     <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.2.0/mapbox-gl.css' rel='stylesheet' />
     <link href='loader.css' rel='stylesheet' />
+    <script src="./colorbrewer.js"></script>
     <script>
     "use strict";
 
     let map = null;
+    let globalStats = null;
     
     function init() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -74,21 +79,12 @@
                     })
                 }
                 graphStats(json)
+                globalStats = json;
             })
             .catch(err=>
                 attrInfoElement.innerHTML = `Failed to parse response, message: ${err.message}`
             );
         })
-    }
-
-    function addLegendLine(color, label) {
-        const legend = document.querySelector('#legend');
-        const svg = `<svg width="30" height="15">
-          <rect width="30" height="15" style="fill:${color};fill-opacity:1;stroke-width:1;stroke:#444"></rect>
-        </svg>`
-        const legendLine = document.createElement('div');
-        legendLine.innerHTML = `<div><span>${svg}</span><span>${label}<span></div>`
-        legend.appendChild(legendLine);
     }
 
     function initMap()
@@ -293,6 +289,88 @@
             }
         })
     }
+
+    function addLegendLine(color, label) {
+        const legend = document.querySelector('#legend');
+        const svg = `<svg width="30" height="15">
+          <rect width="30" height="15" style="fill:${color};fill-opacity:1;stroke-width:1;stroke:#444"></rect>
+        </svg>`
+        const legendLine = document.createElement('div');
+        legendLine.innerHTML = `<div> <span>${svg}</span> <span>${label}<span></div>`
+        legend.appendChild(legendLine);
+    }
+
+    function prepareLegend() {
+        if (globalStats) {
+            document.querySelector('#legend').innerHTML = '';
+            return true;
+        }
+        let messageElem = document.querySelector('#legend.message');
+        if (messageElem) {
+            return false;
+        }
+        messageElem = document.createElement('div');
+        messageElem.classList.add('message');
+        messageElem.innerHTML = "waiting for stats, retry later...";
+        return false;
+    }
+
+    // legendTypes 'div', 'qual', 'seq'
+    // for diverging, qualitative and sequential legends
+    function getColorSchemes(numClasses, legendType) {
+        return colorbrewer.filter(scheme=>scheme.type===legendType && scheme.sets.length > numClasses - 3)
+        .map(scheme=>{
+            const result = scheme.sets[numClasses - 3];
+            result.name = scheme.name;
+            result.type = scheme.type;
+            return result;
+        });
+    }
+
+    function classButton(classType) {
+        if (prepareLegend()) {
+            const classCount = document.querySelector('#classcount').value;
+            if (classCount === 1) {
+                // special case, single classification
+            } else {
+                // classCount > 1
+                const rowCount = globalStats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
+                let classValues = globalStats.values.filter(value=>value.value !== null);
+                if (classValues.length > classCount) {
+                    classValues = classValues.slice(0, classCount - 1);
+                    const classValuesRowCount = classValues.reduce((result, value)=>result+value.count,0);
+                    classValues.push({
+                        value:"other", 
+                        count: rowCount - classValuesRowCount
+                    })
+                    const schemes = getColorSchemes(classCount, 'qual');
+                    const mapboxPaint = {
+                        "line-color": [
+                            "match",
+                            ["get","bicycle"]
+                        ],
+                        "line-width": 1
+                    }
+                    classValues.forEach((value, index) => {
+                        addLegendLine(schemes[0].colors[index], value.value);
+                        mapboxPaint["line-color"].push(value.value);
+                        mapboxPaint["line-color"].push(schemes[0].colors[index]);
+                    });
+                    mapboxPaint["line-color"].push(schemes[0].colors[classValues.length -1]);
+                    map.setPaintProperty('attrlayer', 'line-color', mapboxPaint["line-color"]);
+                }
+            }
+            
+            const nullValues = globalStats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
+            const checkButtonNullValues = document.querySelector('#hidenulls')
+            if (nullValues) {
+                checkButtonNullValues.removeAttribute('disabled');
+            } else {
+                checkButtonNullValues.setAttribute('disabled', '')
+            }
+        }
+    }
+    
     </script>
 
 </head>
@@ -312,11 +390,23 @@
         <div id="map"></div>
         <div id="featurecontainer">
             <div id="legendcontainer">
-                <select id="numclasses" name="numclasses">
-                    <option>1</option>
+                <select id="classcount" name="classcount">
+                    <option value="1" selected>1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                    <option value="11">11</option>
+                    <option value="12">12</option>
                 </select><label for="numclasses">number of classes</label><br>
-                <button>equal interval</button>
-                <button>quantile</button><br>
+                <button onclick="classButton('interval')">equal interval</button>
+                <button onclick="classButton('quantile')">quantile</button>
+                <button onclick="classButton('qualitative')">qualitative</button><br>
                 <input type="checkbox" id="hidenulls" name="hidenulls" checked><label for="hidenulls">Hide null values</label>
                 <div id="legend"></div>
             </div>
