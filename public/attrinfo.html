@@ -4,12 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Info</title>
+    <title>PGServer Info</title>
     <style>
         
         .medium {width: 300px; height: auto;}
+        #mapcontainer {
+            display: flex;
+            flex-wrap: wrap;
+        }
         #map {display: inline-block; width: 500px; height: 500px; border: 1 px solid lightblue;}
-        #info {display: inline-block;}
+        #featurecontainer {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        #feaureinfo {display: inline-block;}
         #attrinfo { 
             display: flex; 
             flex-wrap: wrap;
@@ -72,6 +81,16 @@
         })
     }
 
+    function addLegendLine(color, label) {
+        const legend = document.querySelector('#legend');
+        const svg = `<svg width="30" height="15">
+          <rect width="30" height="15" style="fill:${color};fill-opacity:1;stroke-width:1;stroke:#444"></rect>
+        </svg>`
+        const legendLine = document.createElement('div');
+        legendLine.innerHTML = `<div><span>${svg}</span><span>${label}<span></div>`
+        legend.appendChild(legendLine);
+    }
+
     function initMap()
     {
         const urlParams = new URLSearchParams(window.location.search);
@@ -103,11 +122,7 @@
                         "type": "raster",
                         "source": "osmgray"
                     }
-                ],
-                "filter": [
-                        "has",
-                        `${attrName}`
-                    ]
+                ]
             }
         }
         const bboxll = urlParams.get('bboxll');
@@ -157,19 +172,20 @@
                     "type": layerType,
                     "source": {
                         "type": "vector",
-                        "tiles": [`${baseUrl}/${fullTableName}/mvt/{z}/{x}/{y}?geom_column=${geomColumn}&columns=${attrName}`],
+                        "tiles": [`${baseUrl}/${fullTableName}/mvt/{z}/{x}/{y}?geom_column=${geomColumn}&columns=${attrName}&include_nulls=0`],
                     },
                     "source-layer": fullTableName,
                     "paint": paint,
-                    "filter": ['has', attrName]
+                    //"filter": ['has', attrName]
                 }
                 map.addLayer(layer);
+                addLegendLine('red', fullTableName);
                 document.querySelector("#layerjson").innerHTML = `<pre>${JSON.stringify(layer, null, 2)}</pre>`;
             }
         })
         map.on('mousemove', function (e) {
             var features = map.queryRenderedFeatures(e.point).map(function(feature){ return {layer: {id: feature.layer.id, type: feature.layer.type}, properties:(feature.properties)};});
-            document.getElementById('info').innerHTML = JSON.stringify(features.map(feature=>feature.properties), null, 2);
+            document.querySelector('#featureinfo').innerHTML = JSON.stringify(features.map(feature=>feature.properties), null, 2);
         });
     }
 
@@ -292,8 +308,21 @@
             <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
         </div>
     </div>
-    <div id="map"></div>
-    <div id="info"></div>
+    <div id="mapcontainer">
+        <div id="map"></div>
+        <div id="featurecontainer">
+            <div id="legendcontainer">
+                <select id="numclasses" name="numclasses">
+                    <option>1</option>
+                </select><label for="numclasses">number of classes</label><br>
+                <button>equal interval</button>
+                <button>quantile</button><br>
+                <input type="checkbox" id="hidenulls" name="hidenulls" checked><label for="hidenulls">Hide null values</label>
+                <div id="legend"></div>
+            </div>
+            <div id="featureinfo"></div>
+        </div>
+    </div>
     <div id="layerjson"></div>
     <div id="back"></div>
 </body>

@@ -6,8 +6,38 @@ const merc = new sm({
   size: 256
 })
 
-function queryColumnsNotNull(queryColumns) {
-  if (queryColumns) {
+function toBoolean(value) {
+  if (!value) {
+    return false;
+  }
+  if (typeof value === 'string'){
+    if (value.trim() === '') {
+      return false;
+    } else if (Number(value) === NaN) {
+      switch (value.toLowerCase().trim()) {
+        case 'no':
+        case 'false':
+        case 'n':
+        case 'f':
+          return false;
+        default:
+          return true;
+      }
+    } else {
+      return Number(value) !== 0;
+    }
+  }
+  if (Number(value)!== NaN) {
+    return Number(value) !== 0;
+  }
+  return true;
+}
+
+function queryColumnsNotNull(query) {
+  const queryColumns = query.columns;
+  const includeNulls = toBoolean(query.include_nulls);
+  
+  if (!includeNulls && queryColumns) {
     return ` and (${queryColumns.split(',').map(column=>`${column} is not null`).join(' or ')})`
   } 
   return ''
@@ -36,7 +66,7 @@ const sql = (params, query) => {
               ST_MakeEnvelope(${bounds.join()}, 3857), 
               srid
             ) && ${query.geom_column}
-            ${queryColumnsNotNull(query.columns)}
+            ${queryColumnsNotNull(query)}
           -- Optional Filter
           ${query.filter ? `AND ${query.filter}` : ''}
       ) r
@@ -52,7 +82,7 @@ module.exports = function(app, pool, cache) {
       return;
     }
     const cacheDir = `${req.params.datasource}/mvt/${req.params.z}/${req.params.x}/${req.params.y}`;
-    const key = ((req.query.geom_column?req.query.geom_column:'geom') + (req.query.columns?','+req.query.columns:''))
+    const key = ((req.query.geom_column?req.query.geom_column:'geom') + (req.query.columns?','+req.query.columns:'')) + (toBoolean(req.query.include_nulls)?'_includenulls':'')
       .replace(/[\W]+/g, '_');
   
     const mvt = await cache.getCachedFile(cacheDir, key);
@@ -111,6 +141,11 @@ module.exports = function(app, pool, cache) {
  *         required: false
  *       - name: columns
  *         description: optional comma seperated list of attribute columns to be added to the mvt geometries
+ *         in: query
+ *         required: false
+ *         type: string
+ *       - name: include_nulls
+ *         description: 'optional parameter to include geometries where all attribute columns are null (default: false)'
  *         in: query
  *         required: false
  *         type: string
