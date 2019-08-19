@@ -1,12 +1,20 @@
 const sqlTableName = require('./utils/sqltablename.js');
 
+// get top 100 most frequent values and null values
 const sql = (params, query) => {
     return `
-      select count(1)::integer as "count", "${params.column}" as "value"
-        from ${sqlTableName(params.table)} 
-          where ${query.geom_column} is not null 
-            group by "${params.column}" order by count(1) desc limit 100;
-    `
+      with sortedrecords as 
+      (select count(1)::integer as "count", "${params.column}" as "value"
+            from ${sqlTableName(params.table)} 
+              where ${query.geom_column} is not null 
+                group by "${params.column}" order by count(1) desc)
+    ,toprecords as
+      (select * from sortedrecords limit 100)
+    ,resultset as
+      (select * from toprecords
+        union
+      select * from sortedrecords where value is null)
+    select distinct * from resultset order by count desc;`
   } // TODO, use sql place holders $1, $2 etc. instead of inserting user-parameters into query
 
 // https://leafo.net/guides/postgresql-calculating-percentile.html
