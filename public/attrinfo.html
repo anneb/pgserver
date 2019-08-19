@@ -344,20 +344,21 @@
                         count: rowCount - classValuesRowCount
                     })
                     const schemes = getColorSchemes(classCount, 'qual');
-                    const mapboxPaint = {
-                        "line-color": [
+                    const mapboxPaint = [
                             "match",
                             ["get","bicycle"]
-                        ],
-                        "line-width": 1
-                    }
+                        ];
                     classValues.forEach((value, index) => {
                         addLegendLine(schemes[0].colors[index], value.value);
-                        mapboxPaint["line-color"].push(value.value);
-                        mapboxPaint["line-color"].push(schemes[0].colors[index]);
+                        if (value.value !== 'other') {
+                            mapboxPaint.push(value.value);
+                            mapboxPaint.push(schemes[0].colors[index]);
+                        }
                     });
-                    mapboxPaint["line-color"].push(schemes[0].colors[classValues.length -1]);
-                    map.setPaintProperty('attrlayer', 'line-color', mapboxPaint["line-color"]);
+                    mapboxPaint.push(schemes[0].colors[classValues.length -1]);
+                    const layerType = map.getLayer('attrlayer').type;
+                    const colorprop = `${layerType}-color`;
+                    map.setPaintProperty('attrlayer', colorprop, mapboxPaint);
                 }
             }
             
