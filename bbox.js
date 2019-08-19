@@ -29,7 +29,7 @@ const sqlEstimateBbox = (params, query, estimatedRows) => {
   const ts = splitTableName(params);
   return `
     with srid as
-      (select st_srid(${query.geom_column}) srid
+      (select st_srid(${query.geom_column}) srid, geometrytype(${query.geom_column}) geomtype
          from ${sqlTableName(params.table)} 
             where ${query.geom_column} is not null limit 1)
     ,bboxsrid as
@@ -37,7 +37,7 @@ const sqlEstimateBbox = (params, query, estimatedRows) => {
     ,bboxll as
       (select st_extent(st_transform(st_setsrid(st_envelope(bboxsrid), srid),4326)) bboxll 
          from bboxsrid, srid)
-    select ${estimatedRows} as allrows, ${estimatedRows} as geomrows, bboxll,srid,bboxsrid 
+    select ${estimatedRows} as allrows, ${estimatedRows} as geomrows,bboxll,srid,bboxsrid,geomtype 
        from bboxll,srid,bboxsrid      
   `;
 } 
@@ -45,7 +45,7 @@ const sqlEstimateBbox = (params, query, estimatedRows) => {
 const sqlBbox = (params, query) => {
   return `
     with srid as 
-      (select st_srid(${query.geom_column}) srid
+      (select st_srid(${query.geom_column}) srid, geometrytype(${query.geom_column}) geomtype
         from ${sqlTableName(params.table)}
           where ${query.geom_column} is not null limit 1)
     ,bboxll as 
@@ -57,7 +57,7 @@ const sqlBbox = (params, query) => {
     ,bboxsrid as
       (select st_extent(st_transform(st_setsrid(st_envelope(bboxll),4326),srid)) bboxsrid 
          from bboxll,srid)
-    select allrows, geomrows, bboxll,srid,bboxsrid 
+    select allrows, geomrows, bboxll,srid,bboxsrid,geomtype
       from bboxll,srid,bboxsrid
   `;
 }
@@ -183,9 +183,10 @@ module.exports = function(app, pool, cache) {
           res.json({
             estimated: estimated,
             allrows: Number(row.allrows), 
+            geomtype: row.geomtype,
             geomrows: Number(row.geomrows),
-            bboxll: row.bboxll?row.bboxll.match(/BOX\((.*)\)/)[1].split(',').map(coord=>coord.split(' ').map(c=>parseFloat(c))):null,
             srid: row.srid,
+            bboxll: row.bboxll?row.bboxll.match(/BOX\((.*)\)/)[1].split(',').map(coord=>coord.split(' ').map(c=>parseFloat(c))):null,
             bboxsrid: row.bboxsrid?row.bboxsrid.match(/BOX\((.*)\)/)[1].split(',').map(coord=>coord.split(' ').map(c=>parseFloat(c))):null
           })
         } else if (result.rows.length === 0) {

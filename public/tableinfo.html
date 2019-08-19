@@ -7,11 +7,25 @@
     <title>Info</title>
     <script>
 
-    function addBboxllToLinks(bboxll)
+    function replaceGeomType(url, geomtype) {
+        if (geomtype) {
+            const parts = url.split('&')
+                .map(part=>{
+                    if (part.startsWith('geomtype=')) {
+                        part = `geomtype=${geomtype}`
+                    }
+                    return part;
+            })
+            url = parts.join('&');
+        }
+        return url;
+    }
+
+    function addBboxllToLinks(bboxll,geomtype)
     {
         if (bboxll) {
             document.querySelectorAll('#columns > li > a')
-                .forEach(a=>(a.setAttribute('href', a.getAttribute('href') + '&bboxll='+JSON.stringify(bboxll))))
+                .forEach(a=>(a.setAttribute('href', replaceGeomType(a.getAttribute('href'),geomtype) + '&bboxll='+JSON.stringify(bboxll))))
         }
     }
     
@@ -37,7 +51,7 @@
                         const bbox = document.querySelector('#bbox');
                         if (response.ok) {
                             response.json().then(json=> {
-                                addBboxllToLinks(json.bboxll);
+                                addBboxllToLinks(json.bboxll,json.geomtype);
                                 bbox.innerHTML = `number of rows: ${json.allrows}<br>
                                                 number of geometries: ${json.geomrows}<br>
                                                 srid: EPSG:${json.srid}<br>
