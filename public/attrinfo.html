@@ -357,6 +357,15 @@
                 return result;
             }
         }
+        if (numClasses === 2) {
+            return colorbrewer.filter(scheme=>scheme.type===legendType)
+                .map(scheme=>{
+                    const result = {colors: [scheme.sets[0].colors[0],scheme.sets[0].colors[2]]}
+                    result.name = scheme.name;
+                    result.type = scheme.type;
+                    return result;
+                })
+        }
         return [];
     }
 
@@ -400,7 +409,7 @@
                         let percentileBreaks = globalStats.percentiles.reduce((result, percentile)=>{
                             percentile.pcount = 1;
                             if (result.length === 0) {
-                                result.push(percentile);
+                                result.push(Object.assign({}, percentile)); // spread operator not supported by current Edge
                                 return result;
                             }
                             if (result[result.length - 1].to === percentile.from) {
@@ -409,10 +418,10 @@
                                 result[result.length - 1].pcount++;
                                 return result;
                             }
-                            result.push(percentile);
+                            result.push(Object.assign({}, percentile)); 
                             return result;
                         },[]);
-                        const legendType = (typeof percentileBreaks[0].value === "string") ? 'qual' : 'seq';
+                        const legendType = (typeof percentileBreaks[0].from === "string") ? 'qual' : 'seq';
                         const seqSchemes = getColorSchemes(classCount, legendType);
                         classCount = seqSchemes[0].colors.length;
                         if (classCount > percentileBreaks.length) {
@@ -424,7 +433,7 @@
                             let sumClassCount = 0
                             percentileBreaks = percentileBreaks.reduce((result, percentile)=>{
                                 sumPCount += percentile.pcount;
-                                if (sumPCount > sumClassCount * pCountPerClass) {
+                                if (sumPCount >= sumClassCount * pCountPerClass && result.length < classCount) {
                                     // new class
                                     result.push(percentile);
                                     sumClassCount++;
@@ -436,10 +445,7 @@
                                 return result;
                             },[])
                         }
-                        mapboxPaint = [
-                                "case"
-                            ]
-                        
+                        mapboxPaint = ["case"]
                         percentileBreaks.forEach((brk, index, arr)=>{
                             addLegendLine(seqSchemes[0].colors[index], `${brk.from} - ${brk.to}`, layerType);
                             mapboxPaint.push(["<",["get", globalStats.column],brk.to],seqSchemes[0].colors[index])
