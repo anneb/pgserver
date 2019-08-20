@@ -345,18 +345,24 @@
     // legendTypes 'div', 'qual', 'seq'
     // for diverging, qualitative and sequential legends
     function getColorSchemes(numClasses, legendType) {
-        return colorbrewer.filter(scheme=>scheme.type===legendType && scheme.sets.length > numClasses - 3)
-        .map(scheme=>{
-            const result = scheme.sets[numClasses - 3];
-            result.name = scheme.name;
-            result.type = scheme.type;
-            return result;
-        });
+        for (; numClasses > 2; numClasses--) {
+            let result = colorbrewer.filter(scheme=>scheme.type===legendType && scheme.sets.length > numClasses - 3)
+                .map(scheme=>{
+                    const result = scheme.sets[numClasses - 3];
+                    result.name = scheme.name;
+                    result.type = scheme.type;
+                    return result;
+                });
+            if (result.length) {
+                return result;
+            }
+        }
+        return [];
     }
 
     function classButton(classType) {
         if (prepareLegend()) {
-            const classCount = Number(document.querySelector('#classcount').value);
+            let classCount = Number(document.querySelector('#classcount').value);
             if (classCount === 1) {
                 // special case, single classification
             } else {
@@ -406,7 +412,9 @@
                             result.push(percentile);
                             return result;
                         },[]);
-                        const seqSchemes = getColorSchemes(classCount, 'qual');
+                        const legendType = (typeof percentileBreaks[0].value === "string") ? 'qual' : 'seq';
+                        const seqSchemes = getColorSchemes(classCount, legendType);
+                        classCount = seqSchemes[0].colors.length;
                         if (classCount > percentileBreaks.length) {
                             classCount = percentileBreaks.length
                         } else {
