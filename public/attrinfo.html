@@ -175,14 +175,21 @@
                     //"filter": ['has', attrName]
                 }
                 map.addLayer(layer);
-                addLegendLine('red', fullTableName);
-                document.querySelector("#layerjson").innerHTML = `<pre>${JSON.stringify(layer, null, 2)}</pre>`;
+                addLegendLine('red', fullTableName, layerType);
+                updateLayerJsonDisplay();
+                
             }
         })
         map.on('mousemove', function (e) {
             var features = map.queryRenderedFeatures(e.point).map(function(feature){ return {layer: {id: feature.layer.id, type: feature.layer.type}, properties:(feature.properties)};});
             document.querySelector('#featureinfo').innerHTML = JSON.stringify(features.map(feature=>feature.properties), null, 2);
         });
+    }
+
+    function updateLayerJsonDisplay() {
+        const layerjson = map.getStyle().layers.filter(l=>l.id==='attrlayer')[0];
+        layerjson.source = map.getSource(layerjson.source).serialize();
+        document.querySelector("#layerjson").innerHTML = `<pre>${JSON.stringify(layerjson, null, 2)}</pre>`;
     }
 
     function addCanvas() {
@@ -201,7 +208,7 @@
         new Chart(addCanvas(), {
             type: 'doughnut',
             data: {
-                labels: ['null','non-null',],
+                labels: ['no data','data',],
                 datasets: [{
                     backgroundColor: ['lightgray', 'red'],
                     borderColor: 'white',
@@ -290,11 +297,29 @@
         })
     }
 
-    function addLegendLine(color, label) {
+    function addLegendLine(color, label, type) {
+        if (!type) {
+            type = 'fill';
+        }
         const legend = document.querySelector('#legend');
-        const svg = `<svg width="30" height="15">
-          <rect width="30" height="15" style="fill:${color};fill-opacity:1;stroke-width:1;stroke:#444"></rect>
-        </svg>`
+        let svg;
+        switch (type) {
+            case 'fill':
+                svg = `<svg width="30" height="15">
+                            <rect width="30" height="15" style="fill:${color};fill-opacity:1;stroke-width:1;stroke:#444"></rect>
+                        </svg>`
+                break;
+            case 'line': 
+                svg = `<svg width="30" height="15">
+                        <line x1="0" y1="15" x2="30" y2="0" style="stroke:${color};stroke-width:${color.width};" />
+                      </svg>`
+                break;
+            case 'circle':
+                svg = `<svg width="12" height="12">
+          <circle cx="6" cy="6" r="5" style="fill:${color};fill-opacity:1 stroke-width:1;stroke:white" />
+        </svg>` 
+
+        }
         const legendLine = document.createElement('div');
         legendLine.innerHTML = `<div> <span>${svg}</span> <span>${label}<span></div>`
         legend.appendChild(legendLine);
@@ -334,6 +359,7 @@
                 // special case, single classification
             } else {
                 // classCount > 1
+                const layerType = map.getLayer('attrlayer').type;
                 const rowCount = globalStats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
                 let classValues = globalStats.values.filter(value=>value.value !== null);
                 if (classValues.length > classCount) {
@@ -346,19 +372,19 @@
                     const schemes = getColorSchemes(classCount, 'qual');
                     const mapboxPaint = [
                             "match",
-                            ["get","bicycle"]
+                            ["get",`${globalStats.column}`]
                         ];
                     classValues.forEach((value, index) => {
-                        addLegendLine(schemes[0].colors[index], value.value);
+                        addLegendLine(schemes[0].colors[index], value.value, layerType);
                         if (value.value !== 'other') {
                             mapboxPaint.push(value.value);
                             mapboxPaint.push(schemes[0].colors[index]);
                         }
                     });
                     mapboxPaint.push(schemes[0].colors[classValues.length -1]);
-                    const layerType = map.getLayer('attrlayer').type;
                     const colorprop = `${layerType}-color`;
                     map.setPaintProperty('attrlayer', colorprop, mapboxPaint);
+                    updateLayerJsonDisplay();
                 }
             }
             
@@ -408,7 +434,7 @@
                 <button onclick="classButton('interval')">equal interval</button>
                 <button onclick="classButton('quantile')">quantile</button>
                 <button onclick="classButton('qualitative')">qualitative</button><br>
-                <input type="checkbox" id="hidenulls" name="hidenulls" checked><label for="hidenulls">Hide null values</label>
+                <input type="checkbox" id="hidenulls" name="hidenulls" checked><label for="hidenulls">Hide no-data</label>
                 <div id="legend"></div>
             </div>
             <div id="featureinfo"></div>
