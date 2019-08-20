@@ -111,7 +111,8 @@
                         "tiles":[
                           "https://tiles.edugis.nl/mapproxy/osm/tiles/osmgrayscale_EPSG900913/{z}/{x}/{y}.png?origin=nw"
                         ],
-                        "attribution":"&copy; <a href=\"https://www.openstreetmap.org/about\" target=\"copyright\">OpenStreetMap contributors</a>"
+                        "attribution":"&copy; <a href=\"https://www.openstreetmap.org/about\" target=\"copyright\">OpenStreetMap contributors</a>",
+                        "maxzoom":19
                     }
                 },
                 "layers": [
@@ -412,7 +413,7 @@
                                 result[result.length - 1].pcount = 1;
                                 return result;
                             }
-                            if (result[result.length - 1].to === percentile.from) {
+                            if (result[result.length - 1].from === percentile.from) {
                                 result[result.length - 1].to = percentile.to;
                                 result[result.length - 1].count += percentile.count;
                                 result[result.length - 1].pcount++;
