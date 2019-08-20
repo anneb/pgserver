@@ -413,7 +413,7 @@
                                 result[result.length - 1].pcount = 1;
                                 return result;
                             }
-                            if (result[result.length - 1].from === percentile.from) {
+                            if (result[result.length - 1].from === percentile.from || result[result.length -1].to === percentile.to) {
                                 result[result.length - 1].to = percentile.to;
                                 result[result.length - 1].count += percentile.count;
                                 result[result.length - 1].pcount++;
