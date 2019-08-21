@@ -37,6 +37,7 @@
     <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.2.0/mapbox-gl.css' rel='stylesheet' />
     <link href='loader.css' rel='stylesheet' />
     <script src="./colorbrewer.js"></script>
+    <script src="./ticks.js"></script>
     <script>
     "use strict";
 
@@ -370,6 +371,7 @@
         return [];
     }
 
+    
     function classButton(classType) {
         if (prepareLegend()) {
             let classCount = Number(document.querySelector('#classcount').value);
@@ -381,7 +383,7 @@
                 const rowCount = globalStats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
                 let mapboxPaint;
                 switch(classType) {
-                    case 'qualitative':
+                    case 'mostfrequent':
                         let classValues = globalStats.values.filter(value=>value.value !== null);
                         const needsSlice = classValues.length > classCount;
                         if (needsSlice) {
@@ -410,17 +412,14 @@
                         let percentileBreaks = globalStats.percentiles.reduce((result, percentile)=>{
                             if (result.length === 0) {
                                 result.push(Object.assign({}, percentile)); // spread operator not supported by current Edge
-                                result[result.length - 1].pcount = 1;
                                 return result;
                             }
                             if (result[result.length - 1].from === percentile.from || result[result.length -1].to === percentile.to) {
                                 result[result.length - 1].to = percentile.to;
                                 result[result.length - 1].count += percentile.count;
-                                result[result.length - 1].pcount++;
                                 return result;
                             }
                             result.push(Object.assign({}, percentile)); 
-                            result[result.length - 1].pcount = 1;
                             return result;
                         },[]);
                         const legendType = (typeof percentileBreaks[0].from === "string") ? 'qual' : 'seq';
@@ -429,20 +428,19 @@
                         if (classCount > percentileBreaks.length) {
                             classCount = percentileBreaks.length
                         } else {
-                            let totalPCount = percentileBreaks.reduce((result, percentile)=>result+percentile.pcount, 0);
-                            const pCountPerClass = totalPCount / classCount;
-                            let sumPCount = 0;
+                            let totalRowCount = percentileBreaks.reduce((result, percentile)=>result+percentile.count, 0);
+                            const rowCountPerClass = totalRowCount / classCount;
+                            let sumRowCount = 0;
                             let sumClassCount = 0
                             percentileBreaks = percentileBreaks.reduce((result, percentile)=>{
-                                sumPCount += percentile.pcount;
-                                if (sumPCount > sumClassCount * pCountPerClass && result.length < classCount) {
+                                sumRowCount += percentile.count;
+                                if (sumRowCount > sumClassCount * rowCountPerClass && result.length < classCount) {
                                     // new class
                                     result.push(percentile);
                                     sumClassCount++;
                                 } else {
                                     result[result.length - 1].to = percentile.to;
-                                    result[result.length - 1].count += percentile.count;
-                                    result[result.length - 1].pcount += percentile.pcount;
+                                    result[result.length - 1].count += percentile.count;                                    
                                 }
                                 return result;
                             },[])
@@ -454,11 +452,33 @@
                         })
                         mapboxPaint.push(seqSchemes[0].colors[classCount - 1])
                         break;
+                    case 'interval':
+                        const min = globalStats.percentiles[0].from;
+                        const max = globalStats.percentiles[globalStats.percentiles.length - 1].to;
+                        if (typeof min === "number") {
+                            const intervalSchemes = getColorSchemes(classCount, 'seq');
+                            classCount = intervalSchemes[0].colors.length;
+                            let classTicks = getClassTicks(min, max, classCount);
+                            mapboxPaint = ["case"]
+                            for (let index=0,from = classTicks.min; from < classTicks.max; from+=classTicks.tickWidth,index++) {
+                                let legendFrom = (from).toFixed(classTicks.decimals);
+                                let legendTo = (index===classCount - 1? classTicks.max : from + classTicks.tickWidth).toFixed(classTicks.decimals);
+                                if (globalStats.datatype === 'int4' || globalStats.datatype === 'int8') {
+                                    legendFrom = Math.floor(legendFrom);
+                                    legendTo = Math.floor(legendTo);
+                                }
+                                addLegendLine(intervalSchemes[0].colors[index], `${(legendFrom)} - ${legendTo}`, layerType);
+                                mapboxPaint.push(["<", ["get", globalStats.column],from + classTicks.tickWidth], intervalSchemes[0].colors[index]);
+                            }
+                            mapboxPaint.push(intervalSchemes[0].colors[classCount - 1])
+                        }
+                        break;
                 }
-                
-                const colorprop = `${layerType}-color`;
-                map.setPaintProperty('attrlayer', colorprop, mapboxPaint);
-                updateLayerJsonDisplay();
+                if (mapboxPaint) {
+                    const colorprop = `${layerType}-color`;
+                    map.setPaintProperty('attrlayer', colorprop, mapboxPaint);
+                    updateLayerJsonDisplay();
+                }
             }
             
             const nullValues = globalStats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
@@ -508,7 +528,7 @@
                     </select><label for="numclasses">number of classes</label><br>
                     <button onclick="classButton('interval')">equal interval</button>
                     <button onclick="classButton('quantile')">quantile</button>
-                    <button onclick="classButton('qualitative')">most frequent</button><br>
+                    <button onclick="classButton('mostfrequent')">most frequent</button><br>
                     <input type="checkbox" id="hidenulls" name="hidenulls" checked><label for="hidenulls">Hide no-data</label>
                 </div>
             </div>
