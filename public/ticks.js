@@ -1,36 +1,27 @@
-function niceNumbers (range, round) {
-    const exponent = Math.floor(Math.log10(range));
-    const fraction = range / Math.pow(10, exponent);
-    let niceFraction;
-    if (round) {
-      if (fraction < 1.5) niceFraction = 1;
-      else if (fraction < 3) niceFraction = 2;
-      else if (fraction < 7) niceFraction = 5;
-      else niceFraction = 10;
-    } else {
-      niceFraction = Math.ceil(fraction);
+function roundToPrecision(number, precision, direction) {
+    let negative = (number < 0);
+    if (negative) {
+        number = -number;
+        direction = -direction;
     }
-    return niceFraction * Math.pow(10, exponent);
+    let roundFunc = (direction < 0 ? Math.floor : direction === 0 ? Math.round : Math.ceil);
+    let exponent = Math.floor(Math.log10(number));
+    let decimals = (exponent < precision)? precision - exponent : 0;
+    let fraction = number / Math.pow(10,exponent);
+    return Number((Math.pow(10, exponent) * roundFunc(fraction * Math.pow(10, precision)) / Math.pow(10, precision) * (negative ? -1 : 1)).toFixed(decimals));
 }
 
-function getClassTicks (min, max, maxTicks) {
-    const range = niceNumbers(max - min, false);
-    let decimals = 0;
-    let tickSpacing;
-    if (range === 0) {
-        tickSpacing = 1;
-    } else {
-        tickSpacing = range / maxTicks;
-        let exponent = Math.floor(Math.log10(tickSpacing));
-        tickSpacing = (Math.ceil(100 * (tickSpacing / Math.pow(10, exponent))) / 100) * Math.pow(10, exponent);        
-        if (exponent < 2) {
-            decimals = 2 - exponent;            
-        }
+function getIntervalClassTicks (min, max, classCount) {
+    let niceMin = roundToPrecision(min, 2, -1);
+    let niceMax = roundToPrecision(max, 2, 1);
+    let interval = (niceMax - niceMin) / classCount;
+    let result = [];
+    for (let i = 0; i < classCount; i++) {
+        result.push(roundToPrecision(niceMin + i * interval, 2, -1))
     }
     return {
-        min: Math.floor(min / tickSpacing) * tickSpacing,
-        max: Math.ceil(max / tickSpacing) * tickSpacing,
-        tickWidth: tickSpacing,
-        decimals: decimals
+        min: niceMin,
+        max: niceMax,
+        classes: result
     };
 }

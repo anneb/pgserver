@@ -372,7 +372,8 @@
     }
 
     
-    function classButton(classType) {
+    function classButton() {
+        let classType = document.querySelector('input[name="classtype"]:checked').value;
         if (prepareLegend()) {
             let classCount = Number(document.querySelector('#classcount').value);
             if (classCount === 1) {
@@ -458,18 +459,18 @@
                         if (typeof min === "number") {
                             const intervalSchemes = getColorSchemes(classCount, 'seq');
                             classCount = intervalSchemes[0].colors.length;
-                            let classTicks = getClassTicks(min, max, classCount);
-                            mapboxPaint = ["case"]
-                            for (let index=0,from = classTicks.min; from < classTicks.max; from+=classTicks.tickWidth,index++) {
-                                let legendFrom = (from).toFixed(classTicks.decimals);
-                                let legendTo = (index===classCount - 1? classTicks.max : from + classTicks.tickWidth).toFixed(classTicks.decimals);
+                            let classTicks = getIntervalClassTicks(min, max, classCount);
+                            mapboxPaint = ["case"];
+                            classTicks.classes.forEach((classStart, index)=>{
+                                let legendFrom = classStart;
+                                let legendTo = (index === classCount - 1 ? classTicks.max : classTicks.classes[index + 1]);
                                 if (globalStats.datatype === 'int4' || globalStats.datatype === 'int8') {
                                     legendFrom = Math.floor(legendFrom);
                                     legendTo = Math.floor(legendTo);
                                 }
                                 addLegendLine(intervalSchemes[0].colors[index], `${(legendFrom)} - ${legendTo}`, layerType);
-                                mapboxPaint.push(["<", ["get", globalStats.column],from + classTicks.tickWidth], intervalSchemes[0].colors[index]);
-                            }
+                                mapboxPaint.push(["<", ["get", globalStats.column],legendTo], intervalSchemes[0].colors[index]);
+                            })
                             mapboxPaint.push(intervalSchemes[0].colors[classCount - 1])
                         }
                         break;
@@ -526,10 +527,16 @@
                         <option value="11">11</option>
                         <option value="12">12</option>
                     </select><label for="numclasses">number of classes</label><br>
-                    <button onclick="classButton('interval')">equal interval</button>
-                    <button onclick="classButton('quantile')">quantile</button>
-                    <button onclick="classButton('mostfrequent')">most frequent</button><br>
-                    <input type="checkbox" id="hidenulls" name="hidenulls" checked><label for="hidenulls">Hide no-data</label>
+                    Classification methods:<br>
+                    <input type="radio" name="classtype" id="interval" value="interval"><label for="interval">equal interval</label>
+                    <input type="radio" name="classtype" id="quantile" value="quantile" checked><label for="quantile">quantile</label>
+                    <input type="radio" name="classtype" id="mostfrequent" value="mostfrequent"><label for="mostfrequent">most frequent</label><br>
+                    Color schemes:<br>
+                    <input type="radio" name="colorscheme" id="seqential" value="seq"><label for="sequential">sequential</label>
+                    <input type="radio" name="colorscheme" id="diverting" value="div"><label for="diverting">diverting</label>
+                    <input type="radio" name="colorscheme" id="diverting" value="qual"><label for="qualitative">qualitative</label><br>
+                    <input type="checkbox" id="hidenulls" name="hidenulls" checked><label for="hidenulls">Hide no-data</label><br>
+                    <button onclick="classButton()">update legend</button><br>
                 </div>
             </div>
             <div id="featureinfo"></div>
