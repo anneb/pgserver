@@ -78,6 +78,7 @@
         document.querySelector('#columnname').innerHTML = `Attribute: ${attrName} (${attrType})`;
         document.querySelector('#back').innerHTML = `<a href="tableinfo.html?table=${fullTableName}&geom_column=${geomColumn}">Back to layer info</a>`;
         document.querySelectorAll('[name="colorscheme"]').forEach(radio=>radio.onchange=updateLegendColorSchemes);
+        document.querySelectorAll('[name="classtype"]').forEach(radio=>radio.onchange=applyLegendToMap);
         document.querySelector('#classcount').onchange = classCountChanged;
 
         initMap();
@@ -402,6 +403,7 @@
         schemeDiv.querySelectorAll('div').forEach(div=>div.classList.remove('selected'));
         schemeDiv.querySelectorAll('div').forEach((div,index)=>{if (index === schemeIndex) {div.classList.add('selected')}});
         selectedColorScheme = schemeIndex;
+        applyLegendToMap();
     }
 
     function classCountChanged() {
@@ -432,9 +434,10 @@
             ramp.onclick = ()=>selectColorScheme(schemeIndex);
             schemeDiv.appendChild(ramp);
         })
+        applyLegendToMap();
     }
     
-    function classButton() {
+    function applyLegendToMap() {
         let classType = document.querySelector('input[name="classtype"]:checked').value;
         if (prepareLegend()) {
             let classCount = Number(document.querySelector('#classcount').value);
@@ -448,6 +451,8 @@
                 let schemeType = document.querySelector('input[name="colorscheme"]:checked').value;
                 switch(classType) {
                     case 'mostfrequent':
+                        const schemes = getColorSchemes(classCount, schemeType);
+                        classCount = schemes[0].colors.length;
                         let classValues = globalStats.values.filter(value=>value.value !== null);
                         const needsSlice = classValues.length > classCount;
                         if (needsSlice) {
@@ -458,7 +463,6 @@
                                 count: rowCount - classValuesRowCount
                             })
                         }
-                        const schemes = getColorSchemes(classCount, schemeType);
                         if (globalStats.datatype === 'numeric') {
                             mapboxPaint = [
                                 "match",
@@ -615,7 +619,6 @@
                     <input type="radio" name="colorscheme" id="diverting" value="div"><label for="diverting">diverting</label>
                     <input type="radio" name="colorscheme" id="qualitative" value="qual" checked><label for="qualitative">qualitative</label><br>
                     <input type="checkbox" id="hidenulls" name="hidenulls" checked><label for="hidenulls">Hide no-data</label><br>
-                    <button onclick="classButton()">update legend</button><br>
                     <div id="colorschemes"></div>
                 </div>
             </div>
