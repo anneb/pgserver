@@ -31,6 +31,28 @@
         #attrinfo div {
             margin: 5px;
         }
+        #colorschemes {
+            display: flex;
+            align-content: center;
+        }
+        #colorschemes div {
+            padding: 2px;
+            margin: 2px;
+            cursor: pointer;
+        }
+        #colorschemes div:hover {
+            background-color: lightgray;
+        }
+        #colorschemes div.selected {
+            background-color: darkgray;
+        }
+        #colorschemes svg {
+            display: block;
+        }
+        #colorschemes rect {
+            stroke: #333;
+            stroke-width: 0.5;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
     <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.2.0/mapbox-gl.js'></script>
@@ -43,6 +65,7 @@
 
     let map = null;
     let globalStats = null;
+    let selectedColorScheme = 0;
     
     function init() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -54,6 +77,8 @@
         document.querySelector('#tablename').innerHTML = `Layer: ${fullTableName}<br>Geometry: ${geomColumn}`;
         document.querySelector('#columnname').innerHTML = `Attribute: ${attrName} (${attrType})`;
         document.querySelector('#back').innerHTML = `<a href="tableinfo.html?table=${fullTableName}&geom_column=${geomColumn}">Back to layer info</a>`;
+        document.querySelectorAll('[name="colorscheme"]').forEach(radio=>radio.onchange=updateLegendColorSchemes);
+        document.querySelector('#classcount').onchange = classCountChanged;
 
         initMap();
         
@@ -344,11 +369,11 @@
         return false;
     }
 
-    // legendTypes 'div', 'qual', 'seq'
+    // schemeTypes 'div', 'qual', 'seq'
     // for diverging, qualitative and sequential legends
-    function getColorSchemes(numClasses, legendType) {
+    function getColorSchemes(numClasses, schemeType) {
         for (; numClasses > 2; numClasses--) {
-            let result = colorbrewer.filter(scheme=>scheme.type===legendType && scheme.sets.length > numClasses - 3)
+            let result = colorbrewer.filter(scheme=>scheme.type===schemeType && scheme.sets.length > numClasses - 3)
                 .map(scheme=>{
                     const result = scheme.sets[numClasses - 3];
                     result.name = scheme.name;
@@ -360,7 +385,7 @@
             }
         }
         if (numClasses === 2) {
-            return colorbrewer.filter(scheme=>scheme.type===legendType)
+            return colorbrewer.filter(scheme=>scheme.type===schemeType)
                 .map(scheme=>{
                     const result = {colors: [scheme.sets[0].colors[0],scheme.sets[0].colors[2]]}
                     result.name = scheme.name;
@@ -371,6 +396,43 @@
         return [];
     }
 
+    function selectColorScheme(schemeIndex)
+    {
+        let schemeDiv = document.querySelector('#colorschemes');
+        schemeDiv.querySelectorAll('div').forEach(div=>div.classList.remove('selected'));
+        schemeDiv.querySelectorAll('div').forEach((div,index)=>{if (index === schemeIndex) {div.classList.add('selected')}});
+        selectedColorScheme = schemeIndex;
+    }
+
+    function classCountChanged() {
+        updateLegendColorSchemes();
+    }
+
+    // display the available colorschemes for current scheme type and class number
+    function updateLegendColorSchemes() {
+        let schemeDiv = document.querySelector('#colorschemes');
+        schemeDiv.innerHTML = '';
+        let classCount = Number(document.querySelector('#classcount').value);
+        let schemeType = document.querySelector('input[name="colorscheme"]:checked').value;
+        let schemes = getColorSchemes(classCount, schemeType);
+        classCount = schemes[0].colors.length;
+        if (selectedColorScheme > schemes.length - 1) {
+            selectedColorScheme = schemes.length - 1;
+        }
+        schemes.forEach((scheme, schemeIndex) => {
+            let ramp = document.createElement('div');
+            if (schemeIndex === selectedColorScheme) {
+                ramp.classList.add('selected');
+                selectedColorScheme = schemeIndex;
+            }
+            let svg = `<svg width="15" height="${classCount * 15}">${
+                scheme.colors.map((color, index)=>`<rect fill="${color}" width="15" height="15" y="${index * 15}"></rect>`).join('\n')
+            }</svg>`;
+            ramp.innerHTML = svg;
+            ramp.onclick = ()=>selectColorScheme(schemeIndex);
+            schemeDiv.appendChild(ramp);
+        })
+    }
     
     function classButton() {
         let classType = document.querySelector('input[name="classtype"]:checked').value;
@@ -383,6 +445,7 @@
                 const layerType = map.getLayer('attrlayer').type;
                 const rowCount = globalStats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
                 let mapboxPaint;
+                let schemeType = document.querySelector('input[name="colorscheme"]:checked').value;
                 switch(classType) {
                     case 'mostfrequent':
                         let classValues = globalStats.values.filter(value=>value.value !== null);
@@ -395,19 +458,26 @@
                                 count: rowCount - classValuesRowCount
                             })
                         }
-                        const schemes = getColorSchemes(classCount, 'qual');
-                        mapboxPaint = [
+                        const schemes = getColorSchemes(classCount, schemeType);
+                        if (globalStats.datatype === 'numeric') {
+                            mapboxPaint = [
+                                "match",
+                                ["to-number", ["get",`${globalStats.column}`], 0]
+                            ];
+                        } else {
+                            mapboxPaint = [
                                 "match",
                                 ["get",`${globalStats.column}`]
                             ];
+                        }
                         classValues.forEach((value, index) => {
-                            addLegendLine(schemes[0].colors[index], value.value, layerType);
+                            addLegendLine(schemes[selectedColorScheme].colors[index], value.value, layerType);
                             if (index < classValues.length - 1 || !needsSlice) {
                                 mapboxPaint.push(value.value);
-                                mapboxPaint.push(schemes[0].colors[index]);
+                                mapboxPaint.push(schemes[selectedColorScheme].colors[index]);
                             }
                         });
-                        mapboxPaint.push(schemes[0].colors[classValues.length -1]);
+                        mapboxPaint.push(schemes[selectedColorScheme].colors[classValues.length -1]);
                         break;
                     case 'quantile':
                         let percentileBreaks = globalStats.percentiles.reduce((result, percentile)=>{
@@ -423,9 +493,9 @@
                             result.push(Object.assign({}, percentile)); 
                             return result;
                         },[]);
-                        const legendType = (typeof percentileBreaks[0].from === "string") ? 'qual' : 'seq';
-                        const seqSchemes = getColorSchemes(classCount, legendType);
-                        classCount = seqSchemes[0].colors.length;
+                        //const schemeType = (typeof percentileBreaks[0].from === "string") ? 'qual' : 'seq';
+                        const seqSchemes = getColorSchemes(classCount, schemeType);
+                        classCount = seqSchemes[selectedColorScheme].colors.length;
                         if (classCount > percentileBreaks.length) {
                             classCount = percentileBreaks.length
                         } else {
@@ -448,16 +518,20 @@
                         }
                         mapboxPaint = ["case"]
                         percentileBreaks.forEach((brk, index, arr)=>{
-                            addLegendLine(seqSchemes[0].colors[index], `${brk.from} - ${brk.to}`, layerType);
-                            mapboxPaint.push(["<",["get", globalStats.column],brk.to],seqSchemes[0].colors[index])
+                            addLegendLine(seqSchemes[selectedColorScheme].colors[index], `${brk.from} - ${brk.to}`, layerType);
+                            if (globalStats.datatype === 'numeric') {
+                                mapboxPaint.push(["<",["to-number", ["get", `${globalStats.column}`], 0],brk.to],seqSchemes[selectedColorScheme].colors[index]);
+                            } else {
+                                mapboxPaint.push(["<",["get", `${globalStats.column}`],brk.to],seqSchemes[selectedColorScheme].colors[index]);
+                            }
                         })
-                        mapboxPaint.push(seqSchemes[0].colors[classCount - 1])
+                        mapboxPaint.push(seqSchemes[selectedColorScheme].colors[classCount - 1])
                         break;
                     case 'interval':
                         const min = globalStats.percentiles[0].from;
                         const max = globalStats.percentiles[globalStats.percentiles.length - 1].to;
                         if (typeof min === "number") {
-                            const intervalSchemes = getColorSchemes(classCount, 'seq');
+                            const intervalSchemes = getColorSchemes(classCount, schemeType);
                             classCount = intervalSchemes[0].colors.length;
                             let classTicks = getIntervalClassTicks(min, max, classCount);
                             mapboxPaint = ["case"];
@@ -468,10 +542,15 @@
                                     legendFrom = Math.floor(legendFrom);
                                     legendTo = Math.floor(legendTo);
                                 }
-                                addLegendLine(intervalSchemes[0].colors[index], `${(legendFrom)} - ${legendTo}`, layerType);
-                                mapboxPaint.push(["<", ["get", globalStats.column],legendTo], intervalSchemes[0].colors[index]);
+                                addLegendLine(intervalSchemes[selectedColorScheme].colors[index], `${(legendFrom)} - ${legendTo}`, layerType);
+                                if (globalStats.datatype === 'numeric') {
+                                    // convert javscript string to number
+                                    mapboxPaint.push(["<", ["to-number",["get", globalStats.column], 0],legendTo], intervalSchemes[selectedColorScheme].colors[index]);
+                                } else {
+                                    mapboxPaint.push(["<", ["get", globalStats.column],legendTo], intervalSchemes[selectedColorScheme].colors[index]);
+                                }                                
                             })
-                            mapboxPaint.push(intervalSchemes[0].colors[classCount - 1])
+                            mapboxPaint.push(intervalSchemes[selectedColorScheme].colors[classCount - 1])
                         }
                         break;
                 }
@@ -532,11 +611,12 @@
                     <input type="radio" name="classtype" id="quantile" value="quantile" checked><label for="quantile">quantile</label>
                     <input type="radio" name="classtype" id="mostfrequent" value="mostfrequent"><label for="mostfrequent">most frequent</label><br>
                     Color schemes:<br>
-                    <input type="radio" name="colorscheme" id="seqential" value="seq"><label for="sequential">sequential</label>
+                    <input type="radio" name="colorscheme" id="sequential" value="seq"><label for="sequential">sequential</label>
                     <input type="radio" name="colorscheme" id="diverting" value="div"><label for="diverting">diverting</label>
-                    <input type="radio" name="colorscheme" id="diverting" value="qual"><label for="qualitative">qualitative</label><br>
+                    <input type="radio" name="colorscheme" id="qualitative" value="qual" checked><label for="qualitative">qualitative</label><br>
                     <input type="checkbox" id="hidenulls" name="hidenulls" checked><label for="hidenulls">Hide no-data</label><br>
                     <button onclick="classButton()">update legend</button><br>
+                    <div id="colorschemes"></div>
                 </div>
             </div>
             <div id="featureinfo"></div>
