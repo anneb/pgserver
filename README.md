@@ -25,4 +25,5 @@ If you don't have git, you can donwload [a zip file](https://github.com/anneb/pg
 For interactive data browsing, preview, administration and api documentation, head to [http://localhost:8090](http://localhost:8090).
 
 ### Attributions
-API based on [Dirt Simple PostGIS http API](https://github.com/tobinbradley/dirt-simple-postgis-http-api)
+API based on [Dirt Simple PostGIS http API](https://github.com/tobinbradley/dirt-simple-postgis-http-api)   
+Map colors based on [ColorBrewer](http://colorbrewer2.org)
