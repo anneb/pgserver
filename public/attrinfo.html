@@ -79,7 +79,8 @@
         document.querySelector('#back').innerHTML = `<a href="tableinfo.html?table=${fullTableName}&geom_column=${geomColumn}">Back to layer info</a>`;
         document.querySelectorAll('[name="colorscheme"]').forEach(radio=>radio.onchange=updateLegendColorSchemes);
         document.querySelectorAll('[name="classtype"]').forEach(radio=>radio.onchange=applyLegendToMap);
-        document.querySelector('#classcount').onchange = classCountChanged;
+        document.querySelector('#classcount').onchange = updateLegendColorSchemes;
+        document.querySelector('input[name="colorsreversed"]').onchange = updateLegendColorSchemes
 
         initMap();
         
@@ -372,29 +373,37 @@
 
     // schemeTypes 'div', 'qual', 'seq'
     // for diverging, qualitative and sequential legends
-    function getColorSchemes(numClasses, schemeType) {
+    function getColorSchemes(numClasses, schemeType, reversed) {
         for (; numClasses > 2; numClasses--) {
             let result = colorbrewer.filter(scheme=>scheme.type===schemeType && scheme.sets.length > numClasses - 3)
                 .map(scheme=>{
-                    const result = scheme.sets[numClasses - 3];
+                    let result = Object.assign({}, scheme.sets[numClasses - 3]);
                     result.name = scheme.name;
                     result.type = scheme.type;
                     return result;
                 });
             if (result.length) {
+                if (reversed) {
+                    result.forEach(scheme=>scheme.colors = scheme.colors.map(c=>c).reverse())
+                }
                 return result;
             }
         }
         if (numClasses === 2) {
-            return colorbrewer.filter(scheme=>scheme.type===schemeType)
+            let result = colorbrewer.filter(scheme=>scheme.type===schemeType)
                 .map(scheme=>{
                     const result = {colors: [scheme.sets[0].colors[0],scheme.sets[0].colors[2]]}
                     result.name = scheme.name;
                     result.type = scheme.type;
                     return result;
-                })
+                });
+            if (reversed) {
+                result.forEach(scheme=>scheme.colors = scheme.colors.map(c=>c).reverse());
+            }
+            return result;
+
         }
-        return [];
+        return [{colors:['#ff0000']}];
     }
 
     function selectColorScheme(schemeIndex)
@@ -406,17 +415,14 @@
         applyLegendToMap();
     }
 
-    function classCountChanged() {
-        updateLegendColorSchemes();
-    }
-
     // display the available colorschemes for current scheme type and class number
     function updateLegendColorSchemes() {
         let schemeDiv = document.querySelector('#colorschemes');
         schemeDiv.innerHTML = '';
         let classCount = Number(document.querySelector('#classcount').value);
         let schemeType = document.querySelector('input[name="colorscheme"]:checked').value;
-        let schemes = getColorSchemes(classCount, schemeType);
+        let reversed = document.querySelector('input[name="colorsreversed"]').checked;
+        let schemes = getColorSchemes(classCount, schemeType, reversed);
         classCount = schemes[0].colors.length;
         if (selectedColorScheme > schemes.length - 1) {
             selectedColorScheme = schemes.length - 1;
@@ -439,25 +445,26 @@
     
     function applyLegendToMap() {
         let classType = document.querySelector('input[name="classtype"]:checked').value;
+        let reversed = document.querySelector('input[name="colorsreversed"]').checked;
         if (prepareLegend()) {
             let classCount = Number(document.querySelector('#classcount').value);
             if (classCount === 1) {
                 // special case, single classification
             } else {
                 // classCount > 1
-                const layerType = map.getLayer('attrlayer').type;
-                const rowCount = globalStats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
+                let layerType = map.getLayer('attrlayer').type;
+                let rowCount = globalStats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
                 let mapboxPaint;
                 let schemeType = document.querySelector('input[name="colorscheme"]:checked').value;
                 switch(classType) {
                     case 'mostfrequent':
-                        const schemes = getColorSchemes(classCount, schemeType);
+                        let schemes = getColorSchemes(classCount, schemeType, reversed);
                         classCount = schemes[0].colors.length;
                         let classValues = globalStats.values.filter(value=>value.value !== null);
-                        const needsSlice = classValues.length > classCount;
+                        let needsSlice = classValues.length > classCount;
                         if (needsSlice) {
                             classValues = classValues.slice(0, classCount - 1);
-                            const classValuesRowCount = classValues.reduce((result, value)=>result+value.count,0);
+                            let classValuesRowCount = classValues.reduce((result, value)=>result+value.count,0);
                             classValues.push({
                                 value:"other", 
                                 count: rowCount - classValuesRowCount
@@ -489,7 +496,7 @@
                                 result.push(Object.assign({}, percentile)); // spread operator not supported by current Edge
                                 return result;
                             }
-                            if (result[result.length - 1].from === percentile.from || result[result.length -1].to === percentile.to) {
+                            if (result[result.length - 1].from === percentile.from) {
                                 result[result.length - 1].to = percentile.to;
                                 result[result.length - 1].count += percentile.count;
                                 return result;
@@ -497,14 +504,13 @@
                             result.push(Object.assign({}, percentile)); 
                             return result;
                         },[]);
-                        //const schemeType = (typeof percentileBreaks[0].from === "string") ? 'qual' : 'seq';
-                        const seqSchemes = getColorSchemes(classCount, schemeType);
+                        let seqSchemes = getColorSchemes(classCount, schemeType, reversed);
                         classCount = seqSchemes[selectedColorScheme].colors.length;
                         if (classCount > percentileBreaks.length) {
                             classCount = percentileBreaks.length
                         } else {
                             let totalRowCount = percentileBreaks.reduce((result, percentile)=>result+percentile.count, 0);
-                            const rowCountPerClass = totalRowCount / classCount;
+                            let rowCountPerClass = totalRowCount / classCount;
                             let sumRowCount = 0;
                             let sumClassCount = 0
                             percentileBreaks = percentileBreaks.reduce((result, percentile)=>{
@@ -532,10 +538,10 @@
                         mapboxPaint.push(seqSchemes[selectedColorScheme].colors[classCount - 1])
                         break;
                     case 'interval':
-                        const min = globalStats.percentiles[0].from;
-                        const max = globalStats.percentiles[globalStats.percentiles.length - 1].to;
+                        let min = globalStats.percentiles[0].from;
+                        let max = globalStats.percentiles[globalStats.percentiles.length - 1].to;
                         if (typeof min === "number") {
-                            const intervalSchemes = getColorSchemes(classCount, schemeType);
+                            let intervalSchemes = getColorSchemes(classCount, schemeType, reversed);
                             classCount = intervalSchemes[0].colors.length;
                             let classTicks = getIntervalClassTicks(min, max, classCount);
                             mapboxPaint = ["case"];
@@ -559,14 +565,14 @@
                         break;
                 }
                 if (mapboxPaint) {
-                    const colorprop = `${layerType}-color`;
+                    let colorprop = `${layerType}-color`;
                     map.setPaintProperty('attrlayer', colorprop, mapboxPaint);
                     updateLayerJsonDisplay();
                 }
             }
             
-            const nullValues = globalStats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
-            const checkButtonNullValues = document.querySelector('#hidenulls')
+            let nullValues = globalStats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
+            let checkButtonNullValues = document.querySelector('#hidenulls')
             if (nullValues) {
                 checkButtonNullValues.removeAttribute('disabled');
             } else {
@@ -618,6 +624,7 @@
                     <input type="radio" name="colorscheme" id="sequential" value="seq"><label for="sequential">sequential</label>
                     <input type="radio" name="colorscheme" id="diverting" value="div"><label for="diverting">diverting</label>
                     <input type="radio" name="colorscheme" id="qualitative" value="qual" checked><label for="qualitative">qualitative</label><br>
+                    <input type="checkbox" name="colorsreversed" id="colorsreversed"><label for="colorsreversed">reverse color order</label><br>
                     <input type="checkbox" id="hidenulls" name="hidenulls" checked><label for="hidenulls">Hide no-data</label><br>
                     <div id="colorschemes"></div>
                 </div>
