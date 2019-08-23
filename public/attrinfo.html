@@ -24,11 +24,11 @@
             display: inline-block;
             max-width: 400px;
         }
-        #attrinfo { 
+        #graphs { 
             display: flex; 
             flex-wrap: wrap;
         }
-        #attrinfo div {
+        #graphs div {
             margin: 5px;
         }
         #colorschemes {
@@ -85,13 +85,13 @@
         initMap();
         
         fetch(`data/${fullTableName}/colstats/${attrName}?geom_column=${geomColumn}`).then(response=>{
-            const attrInfoElement = document.querySelector('#attrinfo');
-            attrInfoElement.innerHTML = "";
+            const loadingElement = document.querySelector('#loader');
+            loadingElement.innerHTML = "";
             if (!response.ok) {
                 try {
-                    response.json(json=>attrInfoElement.innerHtml = json.error);
+                    response.json(json=>loadingElement.innerHtml = json.error);
                 } catch(err) {
-                    attrInfoElement.innerHTML = err;
+                    loadingElement.innerHTML = err;
                 }
                 return;
             }
@@ -112,7 +112,7 @@
                 globalStats = json;
             })
             .catch(err=>
-                attrInfoElement.innerHTML = `Failed to parse response, message: ${err.message}`
+                loadingElement.innerHTML = `Failed to parse response, message: ${err.message}`
             );
         })
     }
@@ -223,20 +223,36 @@
         document.querySelector("#layerjson").innerHTML = `<pre>${JSON.stringify(layerjson, null, 2)}</pre>`;
     }
 
-    function addCanvas() {
-        const container = document.createElement('div');
-        container.classList.add('canvascontainer');
-        const canvas = document.createElement('canvas');
-        container.classList.add('medium');
-        container.appendChild(canvas);
-        document.querySelector('#attrinfo').appendChild(container);
-        return canvas;
+    function prepareGraphColors(classType) {
+        globalStats.graphColors = [];
+        globalStats.classType = classType;
+    }
+
+    function addGraphColors(color, upperValue) {
+        globalStats.graphColors.push({color: color, upperValue: upperValue});
+    }
+
+    let graphNoData = null;
+    let graphValues = null;
+    let graphMostFrequent = null;
+
+    function destroyGraphs() {
+        if (graphNoData) {
+            graphNoData.destroy();
+        }
+        if (graphValues) {
+            graphValues.destroy();
+        }
+        if (graphMostFrequent) {
+            graphMostFrequent.destroy();
+        }
     }
 
     function graphStats(stats) {
+        destroyGraphs();
         const nullValues = stats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
         const rowCount = stats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
-        new Chart(addCanvas(), {
+        graphNoData = new Chart(document.querySelector('#graphnodata canvas'), {
             type: 'doughnut',
             data: {
                 labels: ['no data','data',],
@@ -250,13 +266,21 @@
             }
         });
         if (stats.percentiles.length && typeof(stats.percentiles[0].from) !== 'string') {
-            new Chart(addCanvas(), {
+            graphValues = new Chart(document.querySelector('#graphvalues canvas'), {
                 type: 'line',
                 data: {
                     labels: stats.percentiles.map((percentile, index, arr)=>Math.round((index/(arr.length - 1)) * 100)),
                     datasets: [{
-                        backgroundColor: 'red',
-                        borderColor: 'lightred',
+                        backgroundColor: stats.graphColors? stats.percentiles.map((percentile)=>{
+                            let color = stats.classType === 'mostfrequent' ? 
+                                stats.graphColors.find(graphColor=>percentile.to == graphColor.upperValue) : 
+                                    stats.graphColors.find(graphColor=>percentile.to < graphColor.upperValue);
+                            if (!color) {
+                                color = stats.graphColors[stats.graphColors.length - 1];
+                            }
+                            return color.color;
+                        }):'red',
+                        //borderColor: 'lighgray',
                         data: stats.percentiles.map((percentile,index,arr)=>(index===arr.length-1)?percentile.to:percentile.from),
                         fill: false
                     }]
@@ -299,13 +323,19 @@
                 count: rowCount - valuesSummeryRowCount
             })
         }
-        new Chart(addCanvas(), {
+        graphMostFrequent = new Chart(document.querySelector('#graphmostfrequent canvas'), {
             type: "horizontalBar",
             data: {
                 labels: valuesSummary.map(value=>value.value),
                 datasets: [
                     {
-                        backgroundColor: "red",
+                        backgroundColor: stats.graphColors? valuesSummary.map((value)=>{
+                            let color = stats.graphColors.find(graphColor=>value.value === graphColor.upperValue) 
+                            if (!color) {
+                                color = stats.graphColors[stats.graphColors.length - 1];
+                            }
+                            return color.color;
+                        }):'red',
                         data: valuesSummary.map(value=>value.count)
                     }
                 ]
@@ -447,6 +477,7 @@
         let classType = document.querySelector('input[name="classtype"]:checked').value;
         let reversed = document.querySelector('input[name="colorsreversed"]').checked;
         if (prepareLegend()) {
+            prepareGraphColors(classType);
             let classCount = Number(document.querySelector('#classcount').value);
             if (classCount === 1) {
                 // special case, single classification
@@ -483,6 +514,7 @@
                         }
                         classValues.forEach((value, index) => {
                             addLegendLine(schemes[selectedColorScheme].colors[index], value.value, layerType);
+                            addGraphColors(schemes[selectedColorScheme].colors[index], value.value)
                             if (index < classValues.length - 1 || !needsSlice) {
                                 mapboxPaint.push(value.value);
                                 mapboxPaint.push(schemes[selectedColorScheme].colors[index]);
@@ -529,6 +561,7 @@
                         mapboxPaint = ["case"]
                         percentileBreaks.forEach((brk, index, arr)=>{
                             addLegendLine(seqSchemes[selectedColorScheme].colors[index], `${brk.from} - ${brk.to}`, layerType);
+                            addGraphColors(seqSchemes[selectedColorScheme].colors[index], brk.to);
                             if (globalStats.datatype === 'numeric') {
                                 mapboxPaint.push(["<",["to-number", ["get", `${globalStats.column}`], 0],brk.to],seqSchemes[selectedColorScheme].colors[index]);
                             } else {
@@ -553,6 +586,7 @@
                                     legendTo = Math.floor(legendTo);
                                 }
                                 addLegendLine(intervalSchemes[selectedColorScheme].colors[index], `${(legendFrom)} - ${legendTo}`, layerType);
+                                addGraphColors(intervalSchemes[selectedColorScheme].colors[index], legendTo)
                                 if (globalStats.datatype === 'numeric') {
                                     // convert javscript string to number
                                     mapboxPaint.push(["<", ["to-number",["get", globalStats.column], 0],legendTo], intervalSchemes[selectedColorScheme].colors[index]);
@@ -568,6 +602,7 @@
                     let colorprop = `${layerType}-color`;
                     map.setPaintProperty('attrlayer', colorprop, mapboxPaint);
                     updateLayerJsonDisplay();
+                    graphStats(globalStats);
                 }
             }
             
@@ -589,12 +624,17 @@
     <h2 id="tablename"></h2>
     <h2 id="columnname"></h2>
 
-    <div id="attrinfo">
+    <div id="loader">
         <h2>Loading statistics...</h2>
         <div class="loader">
             <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
             <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
         </div>
+    </div>
+    <div id="graphs">
+        <div id="graphnodata" class="canvascontainer medium"><canvas></canvas></div>
+        <div id="graphvalues" class="canvascontainer medium"><canvas></canvas></div>
+        <div id="graphmostfrequent" class="canvascontainer medium"><canvas></canvas></div>
     </div>
     <div id="mapcontainer">
         <div id="map"></div>
