@@ -20,6 +20,9 @@
             flex-direction: column;
             justify-content: space-between;
         }
+        #legendformcontainer {
+            max-width: 320px;
+        }
         #featureinfo {
             display: inline-block;
             max-width: 400px;
@@ -33,7 +36,7 @@
         }
         #colorschemes {
             display: flex;
-            align-content: center;
+            flex-wrap: wrap;
         }
         #colorschemes div {
             padding: 2px;
@@ -109,6 +112,7 @@
                     })
                 }
                 graphStats(json)
+                updateLegendControls(json);
                 globalStats = json;
             })
             .catch(err=>
@@ -329,10 +333,17 @@
                 labels: valuesSummary.map(value=>value.value),
                 datasets: [
                     {
-                        backgroundColor: stats.graphColors? valuesSummary.map((value)=>{
-                            let color = stats.graphColors.find(graphColor=>value.value === graphColor.upperValue) 
+                        backgroundColor: stats.graphColors? valuesSummary.map((value, valueIndex, valueArr)=>{
+                            let color = stats.graphColors.find(graphColor=>value.value < graphColor.upperValue) 
                             if (!color) {
-                                color = stats.graphColors[stats.graphColors.length - 1];
+                                if (value.value === 'other' && valueIndex === valueArr.length - 1) {
+                                    color = stats.graphColors.find(graphColor=>graphColor.upperValue ==='other');
+                                    if (!color) {
+                                        color = {color:'darkgray'};
+                                    }
+                                } else {
+                                    color = stats.graphColors[stats.graphColors.length - 1];
+                                }
                             }
                             return color.color;
                         }):'red',
@@ -605,14 +616,24 @@
                     graphStats(globalStats);
                 }
             }
-            
-            let nullValues = globalStats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
-            let checkButtonNullValues = document.querySelector('#hidenulls')
-            if (nullValues) {
-                checkButtonNullValues.removeAttribute('disabled');
-            } else {
-                checkButtonNullValues.setAttribute('disabled', '')
-            }
+        }
+    }
+
+    function updateLegendControls(stats) {
+        // enable or disable controls that apply to these statistics
+        let nullValues = stats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
+        let checkButtonNullValues = document.querySelector('#hidenulls')
+        if (nullValues) {
+            checkButtonNullValues.removeAttribute('disabled');
+        } else {
+            checkButtonNullValues.setAttribute('disabled', '')
+        }
+        // disable/enable equal interval
+        let radioEqualInterval = document.querySelector('#interval');
+        if (stats.percentiles.length && typeof(stats.percentiles[0].from) !== 'string') {
+            radioEqualInterval.removeAttribute('disabled');
+        } else {
+            radioEqualInterval.setAttribute('disabled', '');
         }
     }
     
