@@ -334,7 +334,9 @@
                 datasets: [
                     {
                         backgroundColor: stats.graphColors? valuesSummary.map((value, valueIndex, valueArr)=>{
-                            let color = stats.graphColors.find(graphColor=>value.value < graphColor.upperValue) 
+                            let color = stats.classType === 'mostfrequent'?
+                                stats.graphColors.find(graphColor=>value.value === graphColor.upperValue) 
+                                    :stats.graphColors.find(graphColor=>value.value < graphColor.upperValue) 
                             if (!color) {
                                 if (value.value === 'other' && valueIndex === valueArr.length - 1) {
                                     color = stats.graphColors.find(graphColor=>graphColor.upperValue ==='other');
@@ -430,10 +432,15 @@
                 return result;
             }
         }
-        if (numClasses === 2) {
+        if (numClasses <= 2) {
             let result = colorbrewer.filter(scheme=>scheme.type===schemeType)
                 .map(scheme=>{
-                    const result = {colors: [scheme.sets[0].colors[0],scheme.sets[0].colors[2]]}
+                    let result = Object.assign({},scheme.sets[0]);
+                    let colors = result.colors.map(c=>c);
+                    result.colors = [colors[2]];
+                    if (numClasses === 2) {
+                        result.colors.unshift(colors[0]);
+                    }
                     result.name = scheme.name;
                     result.type = scheme.type;
                     return result;
@@ -442,7 +449,6 @@
                 result.forEach(scheme=>scheme.colors = scheme.colors.map(c=>c).reverse());
             }
             return result;
-
         }
         return [{colors:['#ff0000']}];
     }
@@ -490,7 +496,7 @@
         if (prepareLegend()) {
             prepareGraphColors(classType);
             let classCount = Number(document.querySelector('#classcount').value);
-            if (classCount === 1) {
+            if (classCount < 1) {
                 // special case, single classification
             } else {
                 // classCount > 1
@@ -531,7 +537,12 @@
                                 mapboxPaint.push(schemes[selectedColorScheme].colors[index]);
                             }
                         });
-                        mapboxPaint.push(schemes[selectedColorScheme].colors[classValues.length -1]);
+                        let lastColor = schemes[selectedColorScheme].colors[classValues.length -1];
+                        if (mapboxPaint.length > 2) {
+                            mapboxPaint.push(lastColor);
+                        } else {
+                            mapboxPaint = lastColor; // single value
+                        }
                         break;
                     case 'quantile':
                         let percentileBreaks = globalStats.percentiles.reduce((result, percentile)=>{
@@ -539,7 +550,7 @@
                                 result.push(Object.assign({}, percentile)); // spread operator not supported by current Edge
                                 return result;
                             }
-                            if (result[result.length - 1].from === percentile.from) {
+                            if (result[result.length - 1].from === percentile.from || (percentile.from instanceof Date && percentile.from.getTime() === result[result.length - 1].from.getTime())) {
                                 result[result.length - 1].to = percentile.to;
                                 result[result.length - 1].count += percentile.count;
                                 return result;
@@ -575,6 +586,8 @@
                             addGraphColors(seqSchemes[selectedColorScheme].colors[index], brk.to);
                             if (globalStats.datatype === 'numeric') {
                                 mapboxPaint.push(["<",["to-number", ["get", `${globalStats.column}`], 0],brk.to],seqSchemes[selectedColorScheme].colors[index]);
+                            } else if (globalStats.datatype === 'timestamptz') {
+                                mapboxPaint.push(["<",["get", `${globalStats.column}`],brk.to.toJSON()],seqSchemes[selectedColorScheme].colors[index]);
                             } else {
                                 mapboxPaint.push(["<",["get", `${globalStats.column}`],brk.to],seqSchemes[selectedColorScheme].colors[index]);
                             }
