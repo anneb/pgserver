@@ -99,8 +99,8 @@ module.exports = function(app, pool) {
       }
       const sqlString = sql(req.params, req.query);
       try {
-        const result = await pool.query(sqlString);
-        res.json(result.rows[0].geojson)
+        const result = await pool.one(sqlString);
+        res.json(result.geojson)
       } catch(err) {
         console.log(err);
         let status = 500;

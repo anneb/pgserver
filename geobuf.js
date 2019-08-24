@@ -99,8 +99,8 @@ const sql = (params, query) => {
       }
       const sqlString = sql(req.params, req.query);
       try {
-        const result = await pool.query(sqlString);
-        res.set('Content-Type', 'text/x-protobuf').send(result.rows[0].st_asgeobuf);
+        const result = await pool.one(sqlString);
+        res.set('Content-Type', 'text/x-protobuf').send(result.st_asgeobuf);
       } catch(err) {
         console.log(err);
         let status = 500;

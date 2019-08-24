@@ -73,7 +73,7 @@ module.exports = function(app, pool) {
     const sqlString = sql(req.params, req.query);
     try {
       const result = await pool.query(sqlString);
-      res.json(result.rows);
+      res.json(result);
     } catch (err) {
       res.status(422).json({error: err});
     }
