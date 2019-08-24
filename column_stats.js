@@ -48,7 +48,7 @@ async function getTypeName(id, pool) {
     const sql = "select oid,typname from pg_type  where oid < 1000000 order by oid";
     try {
       const queryResult = await pool.query(sql);
-      typeMap = new Map(queryResult.rows.map(row=>[row.oid, row.typname]));
+      typeMap = new Map(queryResult.map(row=>[row.oid, row.typname]));
     } catch(err) {
       console.log(`error loading types: ${err}`);
       return id.toString();
@@ -163,7 +163,7 @@ module.exports = function(app, pool, cache) {
         let sqlString = sql(req.params, req.query);
         //console.log(sqlString);
         try {
-            let queryResult = await pool.query(sqlString);
+            let queryResult = await pool.result(sqlString);
             let datatype = await getTypeName(queryResult.fields[1].dataTypeID, pool);
             if (datatype === "numeric" || datatype === "int8") {
               // numeric datatype, try to convert to Number
@@ -173,8 +173,8 @@ module.exports = function(app, pool, cache) {
                 // failed Numeric conversion
               }
             }
-            const stats = queryResult.rows
-            const result = {
+            let stats = queryResult.rows;
+            let result = {
               table: req.params.table,
               column: req.params.column,
               datatype: datatype,
@@ -196,12 +196,12 @@ module.exports = function(app, pool, cache) {
             if (datatype === "numeric" || datatype === "int8") {
               // numeric datatype, try to convert to Number
               try {
-                queryResult.rows = queryResult.rows.map(row=>{row.from=Number(row.from); row.to=Number(row.to); return row});
+                queryResult = queryResult.map(row=>{row.from=Number(row.from); row.to=Number(row.to); return row});
               } catch(err) {
                 // failed Numeric conversion
               }
             }
-            result.percentiles = queryResult.rows;
+            result.percentiles = queryResult;
             res.json(result);
         } catch(err) {
             console.log(err);

@@ -14,14 +14,18 @@
         }
         #map {display: inline-block; width: 500px; height: 500px; border: 1 px solid lightblue;}
         #legendcontainer {display: flex;}
-        #legend {min-width: 250px;}
+        #legend {
+            min-width: 250px;
+            padding-left: 5px;
+        }
         #featurecontainer {
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            padding-left: 5px;
         }
         #legendformcontainer {
             max-width: 320px;
+            padding-left: 5px;
         }
         #featureinfo {
             display: inline-block;
@@ -77,7 +81,7 @@
         const attrType = urlParams.get("columntype");
         const geomType = urlParams.get('geomtype');
         const geomColumn = urlParams.get('geom_column');
-        document.querySelector('#tablename').innerHTML = `Layer: ${fullTableName}<br>Geometry: ${geomColumn}`;
+        document.querySelector('#tablename').innerHTML = `Layer: ${fullTableName}<br>Geometry: ${geomColumn} (${geomType})`;
         document.querySelector('#columnname').innerHTML = `Attribute: ${attrName} (${attrType})`;
         document.querySelector('#back').innerHTML = `<a href="tableinfo.html?table=${fullTableName}&geom_column=${geomColumn}">Back to layer info</a>`;
         document.querySelectorAll('[name="colorscheme"]').forEach(radio=>radio.onchange=updateLegendColorSchemes);
@@ -232,8 +236,8 @@
         globalStats.classType = classType;
     }
 
-    function addGraphColors(color, upperValue) {
-        globalStats.graphColors.push({color: color, upperValue: upperValue});
+    function addGraphColors(color, from, to) {
+        globalStats.graphColors.push({color: color, from: from, to: to});
     }
 
     let graphNoData = null;
@@ -256,6 +260,7 @@
         destroyGraphs();
         const nullValues = stats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
         const rowCount = stats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
+        // doughnut data-nodata
         graphNoData = new Chart(document.querySelector('#graphnodata canvas'), {
             type: 'doughnut',
             data: {
@@ -269,6 +274,7 @@
                 
             }
         });
+        // value graph
         if (stats.percentiles.length && typeof(stats.percentiles[0].from) !== 'string') {
             graphValues = new Chart(document.querySelector('#graphvalues canvas'), {
                 type: 'line',
@@ -277,8 +283,8 @@
                     datasets: [{
                         backgroundColor: stats.graphColors? stats.percentiles.map((percentile)=>{
                             let color = stats.classType === 'mostfrequent' ? 
-                                stats.graphColors.find(graphColor=>percentile.to == graphColor.upperValue) : 
-                                    stats.graphColors.find(graphColor=>percentile.to < graphColor.upperValue);
+                                stats.graphColors.find(graphColor=>percentile.to == graphColor.to) : 
+                                    stats.graphColors.find(graphColor=>percentile.to < graphColor.to);
                             if (!color) {
                                 color = stats.graphColors[stats.graphColors.length - 1];
                             }
@@ -319,56 +325,58 @@
                 }
             })
         }
-        const valuesSummary = stats.values.filter(value=>value.value !== null).slice(0,10);
-        const valuesSummeryRowCount = valuesSummary.reduce((result, value)=>result+value.count,0);
-        if (rowCount > valuesSummeryRowCount) {
-            valuesSummary.push({
-                value:"other", 
-                count: rowCount - valuesSummeryRowCount
-            })
-        }
-        graphMostFrequent = new Chart(document.querySelector('#graphmostfrequent canvas'), {
-            type: "horizontalBar",
-            data: {
-                labels: valuesSummary.map(value=>value.value),
-                datasets: [
-                    {
-                        backgroundColor: stats.graphColors? valuesSummary.map((value, valueIndex, valueArr)=>{
-                            let color = stats.classType === 'mostfrequent'?
-                                stats.graphColors.find(graphColor=>value.value === graphColor.upperValue) 
-                                    :stats.graphColors.find(graphColor=>value.value < graphColor.upperValue) 
-                            if (!color) {
-                                if (value.value === 'other' && valueIndex === valueArr.length - 1) {
-                                    color = stats.graphColors.find(graphColor=>graphColor.upperValue ==='other');
-                                    if (!color) {
-                                        color = {color:'darkgray'};
-                                    }
-                                } else {
-                                    color = stats.graphColors[stats.graphColors.length - 1];
-                                }
-                            }
-                            return color.color;
-                        }):'red',
-                        data: valuesSummary.map(value=>value.count)
-                    }
-                ]
-                
-            },
-            options : {
-                legend: {
-                    display: false,
-                },
-                scales: {
-                    xAxes: [
+        // most frequent values graph
+        if (!stats.uniquevalues) {
+            const valuesSummary = stats.values.filter(value=>value.value !== null).slice(0,10);
+            const valuesSummeryRowCount = valuesSummary.reduce((result, value)=>result+value.count,0);
+            if (rowCount > valuesSummeryRowCount) {
+                valuesSummary.push({
+                    value:"other", 
+                    count: rowCount - valuesSummeryRowCount
+                })
+            }
+            graphMostFrequent = new Chart(document.querySelector('#graphmostfrequent canvas'), {
+                type: "horizontalBar",
+                data: {
+                    labels: valuesSummary.map(value=>value.value),
+                    datasets: [
                         {
-                            ticks: {
-                                min: 0
-                            }
+                            backgroundColor: stats.graphColors? valuesSummary.map((value, valueIndex, valueArr)=>{
+                                let color = stats.graphColors.find((gc, gcIndex, gcArr)=>(value.value >= gc.from && value.value < gc.to) || 
+                                    (value.value === gc.to && (gcIndex === gcArr.length - 1 || value.value !== gcArr[gcIndex+1].from)))
+                                if (!color) {
+                                    if (value.value === 'other' && valueIndex === valueArr.length - 1) {
+                                        color = stats.graphColors.find(graphColor=>graphColor.to ==='other');
+                                        if (!color) {
+                                            color = {color:'darkgray'};
+                                        }
+                                    } else {
+                                        color = stats.graphColors[stats.graphColors.length - 1];
+                                    }
+                                }
+                                return color.color;
+                            }):'red',
+                            data: valuesSummary.map(value=>value.count)
                         }
                     ]
+                    
+                },
+                options : {
+                    legend: {
+                        display: false,
+                    },
+                    scales: {
+                        xAxes: [
+                            {
+                                ticks: {
+                                    min: 0
+                                }
+                            }
+                        ]
+                    }
                 }
-            }
-        })
+            })
+        }
     }
 
     function addLegendLine(color, label, type) {
@@ -518,22 +526,18 @@
                                 count: rowCount - classValuesRowCount
                             })
                         }
+                        mapboxPaint = ["case"];
+                        let getFieldValue;
                         if (globalStats.datatype === 'numeric') {
-                            mapboxPaint = [
-                                "match",
-                                ["to-number", ["get",`${globalStats.column}`], 0]
-                            ];
+                            getFieldValue = ["to-number", ["get",`${globalStats.column}`], 0]
                         } else {
-                            mapboxPaint = [
-                                "match",
-                                ["get",`${globalStats.column}`]
-                            ];
+                            getFieldValue = ["get",`${globalStats.column}`]
                         }
                         classValues.forEach((value, index) => {
                             addLegendLine(schemes[selectedColorScheme].colors[index], value.value, layerType);
-                            addGraphColors(schemes[selectedColorScheme].colors[index], value.value)
+                            addGraphColors(schemes[selectedColorScheme].colors[index], value.value, value.value)
                             if (index < classValues.length - 1 || !needsSlice) {
-                                mapboxPaint.push(value.value);
+                                mapboxPaint.push(["all", [">=", getFieldValue, value.value], ["<=", getFieldValue, value.value]])
                                 mapboxPaint.push(schemes[selectedColorScheme].colors[index]);
                             }
                         });
@@ -583,13 +587,15 @@
                         mapboxPaint = ["case"]
                         percentileBreaks.forEach((brk, index, arr)=>{
                             addLegendLine(seqSchemes[selectedColorScheme].colors[index], `${brk.from} - ${brk.to}`, layerType);
-                            addGraphColors(seqSchemes[selectedColorScheme].colors[index], brk.to);
+                            addGraphColors(seqSchemes[selectedColorScheme].colors[index], brk.from, brk.to);
+                            let nextFrom = (index != arr.length-1)?arr[index+1].from:null;
+                            let compare = (brk.to !== nextFrom)?"<=":"<";
                             if (globalStats.datatype === 'numeric') {
-                                mapboxPaint.push(["<",["to-number", ["get", `${globalStats.column}`], 0],brk.to],seqSchemes[selectedColorScheme].colors[index]);
+                                mapboxPaint.push([compare,["to-number", ["get", `${globalStats.column}`], 0],brk.to],seqSchemes[selectedColorScheme].colors[index]);
                             } else if (globalStats.datatype === 'timestamptz') {
-                                mapboxPaint.push(["<",["get", `${globalStats.column}`],brk.to.toJSON()],seqSchemes[selectedColorScheme].colors[index]);
+                                mapboxPaint.push([compare,["get", `${globalStats.column}`],brk.to.toJSON()],seqSchemes[selectedColorScheme].colors[index]);
                             } else {
-                                mapboxPaint.push(["<",["get", `${globalStats.column}`],brk.to],seqSchemes[selectedColorScheme].colors[index]);
+                                mapboxPaint.push([compare,["get", `${globalStats.column}`],brk.to],seqSchemes[selectedColorScheme].colors[index]);
                             }
                         })
                         mapboxPaint.push(seqSchemes[selectedColorScheme].colors[classCount - 1])
@@ -610,7 +616,7 @@
                                     legendTo = Math.floor(legendTo);
                                 }
                                 addLegendLine(intervalSchemes[selectedColorScheme].colors[index], `${(legendFrom)} - ${legendTo}`, layerType);
-                                addGraphColors(intervalSchemes[selectedColorScheme].colors[index], legendTo)
+                                addGraphColors(intervalSchemes[selectedColorScheme].colors[index], legendFrom, legendTo)
                                 if (globalStats.datatype === 'numeric') {
                                     // convert javscript string to number
                                     mapboxPaint.push(["<", ["to-number",["get", globalStats.column], 0],legendTo], intervalSchemes[selectedColorScheme].colors[index]);

@@ -10,10 +10,15 @@ app.use(logger('dev'));
 app.use(cors());
 app.use('/', express.static(__dirname + '/public'));
 
-const {Pool} = require('pg');
+
 const dbconfig = require('./config/dbconfig.json');
-const readOnlyPool = new Pool(dbconfig);
-readOnlyPool.connect();
+const pgp = require('pg-promise')({
+    /*query: (e) => {
+        console.log(e.query);
+    }*/
+});
+const readOnlyPool = pgp(dbconfig);
+//readOnlyPool.connect();
 
 const DirCache = require('./utils/dircache.js')
 const cache = new DirCache(`./cache/${dbconfig.database?dbconfig.database:process.env.PGDATABASE?process.env.PGDATABASE:''}`);

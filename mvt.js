@@ -1,5 +1,6 @@
 // based on https://raw.githubusercontent.com/tobinbradley/dirt-simple-postgis-http-api/master/routes/mvt.js
 const sqlTableName = require('./utils/sqltablename.js');
+const dbutils = require('./utils/dbutils.js');
 
 const sm = require('@mapbox/sphericalmercator');
 const merc = new sm({
@@ -38,12 +39,12 @@ function queryColumnsNotNull(query) {
   const includeNulls = toBoolean(query.include_nulls);
   
   if (!includeNulls && queryColumns) {
-    return ` and (${queryColumns.split(',').map(column=>`${column} is not null`).join(' or ')})`
+    return ` and (${queryColumns.split(',').map((column, index)=>`$(column${index}:name) is not null`).join(' or ')})`
   } 
   return ''
 }
 
-const sql = (params, query) => {
+const sql2 = (params, query) => {
     let bounds = merc.bbox(params.x, params.y, params.z, false, '900913')
   
     return `
@@ -73,6 +74,33 @@ const sql = (params, query) => {
     ) q
     `
   } // TODO, use sql place holders $1, $2 etc. instead of inserting user-parameters into query
+
+  let sql = (query) => {
+    return `
+    SELECT ST_AsMVT(q, $(table.fullname), 4096, 'geom')
+    FROM 
+      (SELECT  $(columns:name),
+        ST_AsMVTGeom(
+          ST_Transform($(geomcolumn:name), 3857),
+          ST_MakeBox2D(ST_Point($(bounds0), $(bounds1)), ST_Point($(bounds2), $(bounds3)))
+        ) geom
+      FROM 
+        (SELECT $(columns:name), $(geomcolumn:name), srid
+          FROM 
+            $(table.schema:name).$(table.name:name),
+            (SELECT ST_SRID($(geomcolumn:name)) AS srid FROM $(table.schema:name).$(table.name:name)
+              WHERE $(geomcolumn:name) is not null  LIMIT 1) a
+          WHERE
+            $(geomcolumn:name) is not null AND
+            ST_transform(
+              ST_MakeEnvelope($(bounds:csv), 3857), 
+              srid
+            ) && $(geomcolumn:name)
+            ${queryColumnsNotNull(query)}
+      ) r
+    ) q
+    `
+  }
 
 module.exports = function(app, pool, cache) {
 
@@ -162,11 +190,24 @@ module.exports = function(app, pool, cache) {
             req.query.geom_column = 'geom'; // default
         }
         req.params.table = req.params.datasource;
-        const sqlString = sql(req.params, req.query);
-        // console.log(sqlString);
         try {
-            const result = await pool.query(sqlString);
-            const mvt = result.rows[0].st_asmvt
+            let bounds = merc.bbox(req.params.x, req.params.y, req.params.z, false, '900913');
+            let sqlString = sql(req.query);
+            let sqlParams = {
+              table: dbutils.splitSchemaTable(req.params.table),
+              columns: req.query.columns.split(','),
+              geomcolumn: req.query.geom_column,
+              bounds: bounds,
+              bounds0: bounds[0],
+              bounds1: bounds[1],
+              bounds2: bounds[2],
+              bounds3: bounds[3]
+            };
+            req.query.columns.split(',').forEach((column, index)=>{
+              sqlParams[`column${index}`] = column;
+            })
+            const result = await pool.one(sqlString, sqlParams);
+            const mvt = result.st_asmvt
             if (mvt.length === 0) {
                 res.status(204)
             }

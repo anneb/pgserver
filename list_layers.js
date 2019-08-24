@@ -90,9 +90,9 @@ const sql = () => {
  */
       app.get('/data/list_layers', async (req, res)=>{
         try {
-            const sqlString = sql()
-            const result = await pool.query(sqlString);
-            const layers = result.rows
+            let sqlString = sql()
+            let result = await pool.query(sqlString);
+            let layers = result
             res.json(layers)
         } catch(err) {
             res.status(500).json({error: err.message})

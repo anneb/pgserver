@@ -56,8 +56,8 @@ module.exports = function (app, pool) {
       req.params.schema = schemaName;
       const sqlString = sql(req.params, req.query);
       try {
-        const result = await pool.query(sqlString);
-        res.json(result.rows);
+        let result = await pool.query(sqlString);
+        res.json(result);
       } catch (err) {
         console.log(err);
         let status = 500;

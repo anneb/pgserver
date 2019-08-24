@@ -170,16 +170,16 @@ module.exports = function(app, pool, cache) {
       let estimated = false;
       try {
         const estimateResult = await pool.query(sql);
-        const estimatedRows = estimateResult.rows[0].estimated_rows;
+        const estimatedRows = estimateResult[0].estimated_rows;
         if (estimatedRows < 5000000 || req.query.filter) {
           sql = sqlBbox(req.params, req.query);
         } else {
           sql = sqlEstimateBbox(req.params, req.query, estimatedRows);
           estimated = true;
         }
-        const result = await pool.query(sql);
-        if (result.rows.length === 1) {
-          const row = result.rows[0];
+        const result = await pool.any(sql);
+        if (result.length === 1) {
+          const row = result[0];
           res.json({
             estimated: estimated,
             allrows: Number(row.allrows), 
@@ -189,7 +189,7 @@ module.exports = function(app, pool, cache) {
             bboxll: row.bboxll?row.bboxll.match(/BOX\((.*)\)/)[1].split(',').map(coord=>coord.split(' ').map(c=>parseFloat(c))):null,
             bboxsrid: row.bboxsrid?row.bboxsrid.match(/BOX\((.*)\)/)[1].split(',').map(coord=>coord.split(' ').map(c=>parseFloat(c))):null
           })
-        } else if (result.rows.length === 0) {
+        } else if (result.length === 0) {
           res.json({
             allrows: 0,
             geomrows: 0,
