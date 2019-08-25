@@ -97,7 +97,7 @@ const sql2 = (params, query) => {
               srid
             ) && $(geomcolumn:name)
             ${queryColumnsNotNull(query)}
-      ) r
+      ) r limit 2000000
     ) q
     `
   }

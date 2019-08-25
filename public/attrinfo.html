@@ -6,7 +6,6 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>PGServer Info</title>
     <style>
-        
         .medium {width: 300px; height: auto;}
         #mapcontainer {
             display: flex;
@@ -37,6 +36,7 @@
         }
         #graphs div {
             margin: 5px;
+            text-align: center;
         }
         #colorschemes {
             display: flex;
@@ -74,6 +74,7 @@
     let globalStats = null;
     let selectedColorScheme = 0;
     
+    // initialize page app
     function init() {
         const urlParams = new URLSearchParams(window.location.search);
         const fullTableName = urlParams.get('table');
@@ -115,6 +116,7 @@
                         return value;
                     })
                 }
+                textStats(json)
                 graphStats(json)
                 updateLegendControls(json);
                 globalStats = json;
@@ -125,6 +127,7 @@
         })
     }
 
+    // initialize the geographic map
     function initMap()
     {
         const urlParams = new URLSearchParams(window.location.search);
@@ -160,12 +163,16 @@
                 ]
             }
         }
+        // set map extent to bboxll boundingbox defined by bboxll parameter
         const bboxll = urlParams.get('bboxll');
         if (bboxll) {
             mapDefinition.bounds = JSON.parse(bboxll);
         }
+        // create the mapbox-gl map
         map = new mapboxgl.Map(mapDefinition);
+
         map.on('load', () => {
+            // add the attribute layer
             let layerType, paint;
             switch (geomType) {
                 case 'MULTIPOLYGON':
@@ -199,6 +206,7 @@
                     break;
             }
             if (!layerType) {
+                // layerType not one of 'fill', 'line', 'circle'
                 document.querySelector("#layerjson").innerHTML = `Field geom of type: '${geomType}' not supported<br>Supported types: (MULTI-) POINT/LINE/POLYGON<p>`
             } else {
                 const baseUrl = new URL(`/data`, window.location.href).href;
@@ -219,31 +227,37 @@
                 
             }
         })
+        // get feature information from features under mouse cursor and display
         map.on('mousemove', function (e) {
             var features = map.queryRenderedFeatures(e.point).map(function(feature){ return {layer: {id: feature.layer.id, type: feature.layer.type}, properties:(feature.properties)};});
             document.querySelector('#featureinfo').innerHTML = JSON.stringify(features.map(feature=>feature.properties), null, 2);
         });
     }
 
+    // display attribute layer defintion (json)
     function updateLayerJsonDisplay() {
         const layerjson = map.getStyle().layers.filter(l=>l.id==='attrlayer')[0];
         layerjson.source = map.getSource(layerjson.source).serialize();
         document.querySelector("#layerjson").innerHTML = `<pre>${JSON.stringify(layerjson, null, 2)}</pre>`;
     }
 
+    // initialize graphs
     function prepareGraphColors(classType) {
         globalStats.graphColors = [];
         globalStats.classType = classType;
     }
 
+    // add a class color to the graph 
     function addGraphColors(color, from, to) {
         globalStats.graphColors.push({color: color, from: from, to: to});
     }
 
     let graphNoData = null;
     let graphValues = null;
+    let graphQuantiles = null;
     let graphMostFrequent = null;
 
+    // destroy old graphs
     function destroyGraphs() {
         if (graphNoData) {
             graphNoData.destroy();
@@ -251,11 +265,63 @@
         if (graphValues) {
             graphValues.destroy();
         }
+        if (graphQuantiles) {
+            graphQuantiles.destroy();
+        }
         if (graphMostFrequent) {
             graphMostFrequent.destroy();
         }
     }
 
+    // calculate quantiles based on percentile stats
+    function getQuantiles(percentiles, classCount) {
+        // group together percentiles of same value
+        let percentileBreaks = percentiles.reduce((result, percentile)=>{
+            if (result.length === 0) {
+                // result.push({...percentile});
+                result.push(Object.assign({}, percentile));
+                return result;
+            }
+            if (result[result.length - 1].from === percentile.from || (percentile.from instanceof Date && percentile.from.getTime() === result[result.length - 1].from.getTime())) {
+                result[result.length - 1].to = percentile.to;
+                result[result.length - 1].count += percentile.count;
+                return result;
+            }
+            result.push(Object.assign({}, percentile)); 
+            return result;
+        },[]);
+        
+        if (classCount < percentileBreaks.length) {
+            // reduce percentiles to fit classCount
+            let totalRowCount = percentileBreaks.reduce((result, percentile)=>result+percentile.count, 0);
+            let rowCountPerClass = totalRowCount / classCount;
+            let sumRowCount = 0;
+            let sumClassCount = 0
+            percentileBreaks = percentileBreaks.reduce((result, percentile)=>{
+                sumRowCount += percentile.count;
+                if (sumRowCount > sumClassCount * rowCountPerClass && result.length < classCount) {
+                    // new class
+                    result.push(percentile);
+                    sumClassCount++;
+                } else {
+                    result[result.length - 1].to = percentile.to;
+                    result[result.length - 1].count += percentile.count;                                    
+                }
+                return result;
+            },[])
+        }
+        return percentileBreaks;
+    }
+
+    function textStats(stats) {
+        let nullValues = stats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
+        let rowCount = stats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
+        document.querySelector('#textstats').innerHTML = `
+        <b>min:</b> ${stats.percentiles.length?stats.percentiles[0].from:null} <b>max:</b> ${stats.percentiles.length?stats.percentiles[stats.percentiles.length-1].to:null} <b>count:</b> ${nullValues+rowCount} ${!nullValues?"(no-data: 0)":!rowCount?"(only no-data)":`(data: ${rowCount}, no-data: ${nullValues})`}
+        `        
+    }
+
+    // display graphs based on statistics
     function graphStats(stats) {
         destroyGraphs();
         const nullValues = stats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
@@ -271,7 +337,6 @@
                     borderWidth: 0,
                     data: [nullValues, rowCount]
                 }]
-                
             }
         });
         // value graph
@@ -325,6 +390,52 @@
                 }
             })
         }
+        // quantiles graph
+        let labels, data, backgroundColor;
+        if (stats.graphColors) {
+            // graph counts per legend class
+            labels = stats.graphColors.map(c=>`${c.from} - ${c.to}`);
+            backgroundColor = stats.graphColors.map(c=>c.color);
+            data = stats.graphColors.map(c=>0);
+            stats.graphColors.forEach((color,index,arr)=>{
+                let nextFrom = (index < arr.length - 1)?arr[index+1].from:null;
+                stats.percentiles.forEach(percentile=>{
+                    if (color.from <= percentile.from && ((nextFrom !== null && percentile.to < nextFrom) || (nextFrom === null && percentile.to <= color.to))) {
+                        data[index] += percentile.count;
+                    }
+                })
+            })
+        } else {
+            // graph 11 quantiles
+            let quantileBreaks = getQuantiles(stats.percentiles, 11);
+            labels = quantileBreaks.map(quantile=>`${quantile.from} - ${quantile.to}`);
+            data = quantileBreaks.map(quantile=>quantile.count);
+            backgroundColor = 'red'
+        }
+        graphQuantiles = new Chart(document.querySelector('#graphquantiles canvas'), {
+            type: "horizontalBar",
+            data: {
+                labels: labels,
+                datasets: [{
+                    backgroundColor: backgroundColor,
+                    data: data
+                }]
+            },
+            options : {
+                legend: {
+                    display: false,
+                },
+                scales: {
+                    xAxes: [
+                        {
+                            ticks: {
+                                min: 0
+                            }
+                        }
+                    ]
+                }
+            }
+        })
         // most frequent values graph
         if (!stats.uniquevalues) {
             const valuesSummary = stats.values.filter(value=>value.value !== null).slice(0,10);
@@ -379,6 +490,7 @@
         }
     }
 
+    // add a line to the legend (color + label)
     function addLegendLine(color, label, type) {
         if (!type) {
             type = 'fill';
@@ -407,6 +519,7 @@
         legend.appendChild(legendLine);
     }
 
+    // make legend area empty or display 'please wait' message
     function prepareLegend() {
         if (globalStats) {
             document.querySelector('#legend').innerHTML = '';
@@ -422,6 +535,7 @@
         return false;
     }
 
+    // get a colorbrewer color scheme that matches the parameters
     // schemeTypes 'div', 'qual', 'seq'
     // for diverging, qualitative and sequential legends
     function getColorSchemes(numClasses, schemeType, reversed) {
@@ -461,6 +575,7 @@
         return [{colors:['#ff0000']}];
     }
 
+    // applies the (newly) selected colorscheme to map, legend and graphs
     function selectColorScheme(schemeIndex)
     {
         let schemeDiv = document.querySelector('#colorschemes');
@@ -498,6 +613,7 @@
         applyLegendToMap();
     }
     
+    // create a map layer definition from the legend and apply it to the map attribute layer
     function applyLegendToMap() {
         let classType = document.querySelector('input[name="classtype"]:checked').value;
         let reversed = document.querySelector('input[name="colorsreversed"]').checked;
@@ -551,7 +667,8 @@
                     case 'quantile':
                         let percentileBreaks = globalStats.percentiles.reduce((result, percentile)=>{
                             if (result.length === 0) {
-                                result.push(Object.assign({}, percentile)); // spread operator not supported by current Edge
+                                // result.push({...percentile});
+                                result.push(Object.assign({}, percentile));
                                 return result;
                             }
                             if (result[result.length - 1].from === percentile.from || (percentile.from instanceof Date && percentile.from.getTime() === result[result.length - 1].from.getTime())) {
@@ -638,6 +755,7 @@
         }
     }
 
+    // enable or disable legend control elements based on attribute stats
     function updateLegendControls(stats) {
         // enable or disable controls that apply to these statistics
         let nullValues = stats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
@@ -671,10 +789,12 @@
             <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
         </div>
     </div>
+    <div id="textstats"></div>
     <div id="graphs">
-        <div id="graphnodata" class="canvascontainer medium"><canvas></canvas></div>
-        <div id="graphvalues" class="canvascontainer medium"><canvas></canvas></div>
-        <div id="graphmostfrequent" class="canvascontainer medium"><canvas></canvas></div>
+        <div id="graphnodata" class="canvascontainer medium">no-data<canvas></canvas></div>
+        <div id="graphvalues" class="canvascontainer medium">values<canvas></canvas></div>
+        <div id="graphquantiles" class="canvascontainer medium">count of values<canvas></canvas></div>
+        <div id="graphmostfrequent" class="canvascontainer medium">most common values<canvas></canvas></div>
     </div>
     <div id="mapcontainer">
         <div id="map"></div>
