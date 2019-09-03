@@ -20,6 +20,7 @@
         #featurecontainer {
             display: flex;
             flex-direction: column;
+            justify-content: space-between;
             padding-left: 5px;
         }
         #legendformcontainer {
@@ -61,9 +62,10 @@
             stroke-width: 0.5;
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
-    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.2.0/mapbox-gl.js'></script>
-    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.2.0/mapbox-gl.css' rel='stylesheet' />
+    <script src="./node_modules/chart.js/dist/Chart.bundle.min.js"></script>
+    <link href="./node_modules/chart.js/dist/Chart.min.css" rel="stylesheet" />
+    <link href="./node_modules/mapbox-gl/dist/mapbox-gl.css" rel="stylesheet" />
+    <script src="./node_modules/mapbox-gl/dist/mapbox-gl.js"></script>
     <link href='loader.css' rel='stylesheet' />
     <script src="./colorbrewer.js"></script>
     <script src="./ticks.js"></script>
@@ -116,8 +118,9 @@
                         return value;
                     })
                 }
-                textStats(json)
-                graphStats(json)
+                addRowCountNullValuesToStats(json);
+                textStats(json);
+                graphStats(json);
                 updateLegendControls(json);
                 globalStats = json;
             })
@@ -313,19 +316,21 @@
         return percentileBreaks;
     }
 
+    function addRowCountNullValuesToStats(stats) {
+        stats.nullValues = stats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
+        stats.rowCount = stats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
+        return stats;
+    }
+
     function textStats(stats) {
-        let nullValues = stats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
-        let rowCount = stats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
         document.querySelector('#textstats').innerHTML = `
-        <b>min:</b> ${stats.percentiles.length?stats.percentiles[0].from:null} <b>max:</b> ${stats.percentiles.length?stats.percentiles[stats.percentiles.length-1].to:null} <b>count:</b> ${nullValues+rowCount} ${!nullValues?"(no-data: 0)":!rowCount?"(only no-data)":`(data: ${rowCount}, no-data: ${nullValues})`}
+        <b>min:</b> ${stats.percentiles.length?stats.percentiles[0].from:null} <b>max:</b> ${stats.percentiles.length?stats.percentiles[stats.percentiles.length-1].to:null} <b>count:</b> ${stats.nullValues+stats.rowCount} ${!stats.nullValues?"(no-data: 0)":!stats.rowCount?"(only no-data)":`(data: ${stats.rowCount}, no-data: ${stats.nullValues})`}, <b>all unique:</b> ${stats.uniquevalues?"yes":"no"}
         `        
     }
 
     // display graphs based on statistics
     function graphStats(stats) {
         destroyGraphs();
-        const nullValues = stats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
-        const rowCount = stats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
         // doughnut data-nodata
         graphNoData = new Chart(document.querySelector('#graphnodata canvas'), {
             type: 'doughnut',
@@ -335,7 +340,7 @@
                     backgroundColor: ['lightgray', 'red'],
                     borderColor: 'white',
                     borderWidth: 0,
-                    data: [nullValues, rowCount]
+                    data: [stats.nullValues, stats.rowCount]
                 }]
             }
         });
@@ -397,13 +402,28 @@
             labels = stats.graphColors.map(c=>`${c.from} - ${c.to}`);
             backgroundColor = stats.graphColors.map(c=>c.color);
             data = stats.graphColors.map(c=>0);
+            let totalCount = 0;
             stats.graphColors.forEach((color,index,arr)=>{
                 let nextFrom = (index < arr.length - 1)?arr[index+1].from:null;
-                stats.percentiles.forEach(percentile=>{
-                    if (color.from <= percentile.from && ((nextFrom !== null && percentile.to < nextFrom) || (nextFrom === null && percentile.to <= color.to))) {
-                        data[index] += percentile.count;
+                if (nextFrom > color.to) {
+                    nextFrom = null;
+                }
+                if (stats.classType === "mostfrequent") {
+                    let valueInfo = stats.values.find(value=>value.value===color.from);
+                    if (valueInfo) {
+                        data[index] = valueInfo.count;
+                        totalCount += valueInfo.count;
+                    } else {
+                        // other
+                        data[index] = stats.rowCount - totalCount;
                     }
-                })
+                } else {
+                    stats.percentiles.forEach(percentile=>{
+                        if (color.from <= percentile.from && ((nextFrom !== null && percentile.to < nextFrom) || (nextFrom === null && percentile.to <= color.to))) {
+                            data[index] += percentile.count;
+                        }
+                    })
+                }
             })
         } else {
             // graph 11 quantiles
@@ -440,10 +460,10 @@
         if (!stats.uniquevalues) {
             const valuesSummary = stats.values.filter(value=>value.value !== null).slice(0,10);
             const valuesSummeryRowCount = valuesSummary.reduce((result, value)=>result+value.count,0);
-            if (rowCount > valuesSummeryRowCount) {
+            if (stats.rowCount > valuesSummeryRowCount) {
                 valuesSummary.push({
                     value:"other", 
-                    count: rowCount - valuesSummeryRowCount
+                    count: stats.rowCount - valuesSummeryRowCount
                 })
             }
             graphMostFrequent = new Chart(document.querySelector('#graphmostfrequent canvas'), {
@@ -625,7 +645,6 @@
             } else {
                 // classCount > 1
                 let layerType = map.getLayer('attrlayer').type;
-                let rowCount = globalStats.percentiles.reduce((result, percentile)=>result + percentile.count, 0);
                 let mapboxPaint;
                 let schemeType = document.querySelector('input[name="colorscheme"]:checked').value;
                 switch(classType) {
@@ -639,7 +658,7 @@
                             let classValuesRowCount = classValues.reduce((result, value)=>result+value.count,0);
                             classValues.push({
                                 value:"other", 
-                                count: rowCount - classValuesRowCount
+                                count: globalStats.rowCount - classValuesRowCount
                             })
                         }
                         mapboxPaint = ["case"];
@@ -706,6 +725,9 @@
                             addLegendLine(seqSchemes[selectedColorScheme].colors[index], `${brk.from} - ${brk.to}`, layerType);
                             addGraphColors(seqSchemes[selectedColorScheme].colors[index], brk.from, brk.to);
                             let nextFrom = (index != arr.length-1)?arr[index+1].from:null;
+                            if (nextFrom > brk.to) {
+                                nextFrom = null;
+                            }
                             let compare = (brk.to !== nextFrom)?"<=":"<";
                             if (globalStats.datatype === 'numeric') {
                                 mapboxPaint.push([compare,["to-number", ["get", `${globalStats.column}`], 0],brk.to],seqSchemes[selectedColorScheme].colors[index]);
@@ -758,9 +780,8 @@
     // enable or disable legend control elements based on attribute stats
     function updateLegendControls(stats) {
         // enable or disable controls that apply to these statistics
-        let nullValues = stats.values.filter(value=>value.value === null).reduce((result, value)=>result+value.count,0);
         let checkButtonNullValues = document.querySelector('#hidenulls')
-        if (nullValues) {
+        if (stats.nullValues) {
             checkButtonNullValues.removeAttribute('disabled');
         } else {
             checkButtonNullValues.setAttribute('disabled', '')
@@ -771,6 +792,13 @@
             radioEqualInterval.removeAttribute('disabled');
         } else {
             radioEqualInterval.setAttribute('disabled', '');
+        }
+        // disable/enable most frequent values
+        let radioMostFrequent = document.querySelector('#mostfrequent');
+        if (stats.uniquevalues) {
+            radioMostFrequent.setAttribute('disabled', '');
+        } else {
+            radioMostFrequent.removeAttribute('disabled');
         }
     }
     
