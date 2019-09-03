@@ -91,6 +91,7 @@
         document.querySelectorAll('[name="classtype"]').forEach(radio=>radio.onchange=applyLegendToMap);
         document.querySelector('#classcount').onchange = updateLegendColorSchemes;
         document.querySelector('input[name="colorsreversed"]').onchange = updateLegendColorSchemes
+        document.querySelector('input[name="displayoutlines"]').onchange = updateLegendColorSchemes
 
         initMap();
         
@@ -768,8 +769,23 @@
                         break;
                 }
                 if (mapboxPaint) {
+                    let displayOutlines = document.querySelector('input[name="displayoutlines"]').checked;
+                    switch (layerType) {
+                        case 'fill':
+                            map.setPaintProperty('attrlayer', 'fill-outline-color', displayOutlines? 'white':null);
+                            map.setPaintProperty('attrlayer', 'fill-color', 'yellow'); // fix for mapbox-gl update bug?
+                            break;
+                        case 'line':
+                            break;
+                        case 'circle':
+                            map.setPaintProperty('attrlayer', 'circle-stroke-width', displayOutlines? 1:0);
+                            map.setPaintProperty('attrlayer', 'circle-stroke-color', displayOutlines? 'white':null);
+                            break;
+                    }
+
                     let colorprop = `${layerType}-color`;
                     map.setPaintProperty('attrlayer', colorprop, mapboxPaint);
+
                     updateLayerJsonDisplay();
                     graphStats(globalStats);
                 }
@@ -852,7 +868,8 @@
                     <input type="radio" name="colorscheme" id="sequential" value="seq"><label for="sequential">sequential</label>
                     <input type="radio" name="colorscheme" id="diverting" value="div"><label for="diverting">diverting</label>
                     <input type="radio" name="colorscheme" id="qualitative" value="qual" checked><label for="qualitative">qualitative</label><br>
-                    <input type="checkbox" name="colorsreversed" id="colorsreversed"><label for="colorsreversed">reverse color order</label><br>
+                    <input type="checkbox" name="colorsreversed" id="colorsreversed"><label for="colorsreversed">reverse color order</label>
+                    <input type="checkbox" name="displayoutlines" id="displayoutlines" checked><label for="displayoutlines">visual outlines</label><br><br>
                     <input type="checkbox" id="hidenulls" name="hidenulls" checked><label for="hidenulls">Hide no-data</label><br>
                     <div id="colorschemes"></div>
                 </div>
