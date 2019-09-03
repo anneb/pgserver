@@ -3,7 +3,7 @@ const sqlTableName = require('./utils/sqltablename.js');
 const sql = (params, query) => {
     return `
     SELECT 
-      ${query.columns}
+      ${query.columns?query.columns:'*'}
   
     FROM 
     ${sqlTableName(params.table)}
@@ -75,7 +75,7 @@ module.exports = function(app, pool) {
       const result = await pool.query(sqlString);
       res.json(result);
     } catch (err) {
-      res.status(422).json({error: err});
+      res.status(422).json({error: err.message});
     }
   })
 }
