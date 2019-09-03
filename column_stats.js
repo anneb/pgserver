@@ -30,6 +30,19 @@ const sqlPercentiles = (params, query) => {
   `
 }
 
+const sqlPercentilesVarchar = (params, query) => {
+  return `
+  select min(buckets.value) "from", max(buckets.value) "to", count(ntile)::integer "count", ntile as percentile
+    from
+      (select "${params.column}" as value, ntile(100) over (order by "${params.column}" collate "C.UTF-8") 
+        from ${sqlTableName(params.table)} 
+          where "${params.column}" is not null and ${query.geom_column} is not null) 
+      as buckets
+    group by ntile order by ntile;
+  `
+}
+
+
 const sqlPercentilesBoolean = (params, query) => {
   return `
   select case when min(buckets.value) = 0 then false else true end "from", case when max(buckets.value) = 0 then false else true end "to", count(ntile)::integer "count", ntile as percentile
@@ -189,6 +202,8 @@ module.exports = function(app, pool, cache) {
             }
             if (datatype === "bool") {
               sqlString = sqlPercentilesBoolean(req.params, req.query);
+            } else if (datatype === "varchar") {
+              sqlString = sqlPercentilesVarchar(req.params, req.query);
             } else {
               sqlString = sqlPercentiles(req.params, req.query);
             }
