@@ -225,6 +225,9 @@
                     "paint": paint,
                     //"filter": ['has', attrName]
                 }
+                if (mapDefinition.bounds) {
+                    let b = mapDefinition.bounds;layer.source.bounds = [b[0][0],b[0][1],b[1][0],b[1][1]];
+                }
                 map.addLayer(layer);
                 addLegendLine('red', fullTableName, layerType);
                 updateLayerJsonDisplay();
