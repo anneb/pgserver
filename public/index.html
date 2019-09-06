@@ -6,15 +6,24 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <link rel="stylesheet" href="pgserver.css">
     <title>PGServer UI</title>
+    <script>
+        function setUrlPort() {
+            document.querySelectorAll('.modifyport').forEach(el=>{
+                let url = new URL(el.href);
+                let port = url.port;
+                el.href = `${url.protocol}//${url.hostname}${port!==''?`:${port}`:''}${url.pathname}${url.search}${url.hash}`
+            })
+        }
+    </script>
 </head>
 <style>
 
 </style>
-<body>
+<body onload="setUrlPort()">
     <h1>PGServer</h1>
     Welcome to pgserver<br>
     <a href="/info.html">Browse geo-data</a><br>
     <a href="/api-docs">API documentation (swagger)</a><br>
-    <a href="/upload.html">Upload files</a>
+    <a href="/admin/upload.html" class="modifyport">Upload files</a>
 </body>
 </html>
