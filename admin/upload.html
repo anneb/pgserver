@@ -5,15 +5,131 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Upload</title>
-     <!-- Filepond stylesheet -->
-     <link href="pgserver.css" rel="stylesheet">
+    <link href="pgserver.css" rel="stylesheet">
+    <style>
+    progress { width: 300px;}
+    </style>
+    <script>
+    let timeStart;
+
+    
+    function byteString(byteCount, precision) {
+        let factor = precision ? Math.pow(10,precision) : 1;
+        let outputByteCount = byteCount;
+        if (outputByteCount > (1024 * 1024 * 1024)) {
+            outputByteCount = Math.round(factor * outputByteCount/(1024*1024*1024))/factor;
+            outputUnit = 'GByte';
+        } else if (outputByteCount > (1024 * 1024)) {
+            outputByteCount = Math.round(factor * outputByteCount/(1024*1024))/factor;
+            outputUnit = 'MByte';
+        } else if (outputByteCount > 1024) {
+            outputByteCount = Math.round(outputByteCount/1024);
+            outputUnit = 'kByte';
+        } else {
+            outputByteCount = Math.round(outputByteCount);
+            outputUnit = 'Byte';
+        }
+        return `${outputByteCount} ${outputUnit}`;
+    }
+
+    function speedString(speed) {
+        if (!speed) {
+            return '';
+        }
+        return `(${byteString(speed)}/sec)`
+    }
+
+
+    function progressHandler(event){
+        document.querySelector("#status").innerHTML = `Uploaded ${byteString(event.loaded,1)} of ${byteString(event.total,1)}`
+        let percent = 100 * event.loaded / event.total;
+        let secondsElapsed = (Date.now() - timeStart)/1000;
+        let speed;
+        if (secondsElapsed > 1) {
+            speed = event.loaded / secondsElapsed;
+        }
+        document.querySelector("progress").value = Math.round(percent);
+        document.querySelector("#percentage").innerHTML = `${Math.round(percent)}% uploaded... ${speedString(speed)} please wait`;
+    }
+
+    function completeHandler(event) {
+        document.querySelector("#status").innerHTML = event.target.responseText;
+        document.querySelector("#percentage").innerHTML = "";
+        updateFileList();
+    }
+
+    function errorHandler(event) {
+        document.querySelector('#status').innerHTML = 'upload failed';
+        document.querySelector("progress").value = 0;
+        document.querySelector("#percentage").innerHTML = "";
+    }
+
+    function abortHandler(event) {
+        document.querySelector('#status').innerHTML = 'upload aborted';
+        document.querySelector("progress").value = 0;
+        document.querySelector("#percentage").innerHTML = "";
+    }
+
+    function uploadFile() {
+        let form = document.querySelector("#uploadform");
+        var formdata = new FormData(form);
+        let file = document.querySelector('#file').files[0];
+        //formdata.append("file", file);
+        let xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener("progress", progressHandler, false);
+        xhr.addEventListener("load", completeHandler, false);
+        xhr.addEventListener("error", errorHandler, false);
+        xhr.addEventListener("abort", abortHandler, false);
+        xhr.open("POST", "upload");
+        timeStart = Date.now();
+        xhr.send(formdata);
+    }
+    function deleteFile(filename) {
+        fetch('upload', {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+                'Content-type': 'application/json'
+            },
+            body: JSON.stringify({file: filename})
+        }).then(response=>{
+            if (!response.ok) {
+                return;
+            }
+            updateFileList();
+        })
+    }
+    function fileLine(fileItem) {
+        if (fileItem.permissions.startsWith('d')) {
+            return '';
+        }
+        return `<tr><td><a href="#">import</a></td><td><a href="#" onclick="deleteFile('${fileItem.name}')">delete</a></td><td>${fileItem.permissions}</td><td>${byteString(fileItem.size,1)}</td><td>${fileItem.name}</td></tr>\n`
+    }
+    function updateFileList() {
+        let fileList = document.querySelector('#filelist');
+        fetch("list").then(response=>{
+            if (!response.ok) {
+                fileList.innerHTML = response.responseText;
+                return;
+            }
+            response.json().then(json=>{
+                fileList.innerHTML = `<table>${json
+                    .sort((a,b)=>new Date(b.mtime) - new Date(a.mtime))
+                    .map(item=>fileLine(item)).join('')}</table>`;
+            })
+        })
+    }
+    </script>
 </head>
-<body>
+<body onload="updateFileList()">
 
-<form action="upload" method="post" encType="multipart/form-data">
-<input name="uploadfile" type="file"><br>
-<input type="submit" value="upload">
+<form id="uploadform" action="upload" method="post" encType="multipart/form-data">
+<input id="file" name="uploadfile" type="file" required><br>
+<input type="button" value="upload" onclick="uploadFile()"><br>
+<progress value="0" max="100"></progress>
+<div id="status"></div>
+<div id="percentage"></div>
 </form>
-
+<div id="filelist"></div>
 </body>
 </html>
