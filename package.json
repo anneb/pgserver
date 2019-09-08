@@ -16,6 +16,7 @@
     "express": "^4.17.1",
     "express-fileupload": "^1.1.5",
     "morgan": "^1.9.1",
+    "ogr2ogr": "^1.4.0",
     "pg-promise": "^9.1.0",
     "swagger-jsdoc": "^3.4.0",
     "swagger-ui-express": "^4.0.7"

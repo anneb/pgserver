@@ -1,9 +1,10 @@
 const express = require('express');
 const fs = require('fs');
+const ogr2ogr = require('ogr2ogr');
 
 const fileUpload = require('express-fileupload');
 
-module.exports = function(app) {
+module.exports = function(app, pool) {
   if (!app) {
     return;
   }
@@ -66,5 +67,19 @@ module.exports = function(app) {
       return result;
     })
     res.json(files);
+  })
+
+  app.get('/admin/import', (req, res)=>{
+    ogr2ogr(`${__dirname}/admin/files/${req.query.file}`)
+    .format('PostgreSQL')
+        .destination(`PG:host=${pool.$cn.host} user=${pool.$cn.user} dbname=${pool.$cn.database} password=${pool.$cn.password} port=${pool.$cn.port?pool.$cn.port:5432}`)
+        .options(['-nlt', 'PROMOTE_TO_MULTI', '-overwrite', '-lco', 'GEOMETRY_NAME=geom'])
+        .exec((err, data) => {
+            if (err) {
+              res.json({error: err.message});
+              return;
+            }
+            res.json({result: "ok"});
+        })
   })
 }
