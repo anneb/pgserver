@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const ogr2ogr = require('ogr2ogr');
+const path = require('path');
 
 const fileUpload = require('express-fileupload');
 
@@ -70,10 +71,13 @@ module.exports = function(app, pool) {
   })
 
   app.get('/admin/import', (req, res)=>{
+
+    let tablename = path.parse(req.query.file).name.toLowerCase();
+    tablename = tablename.replace(/\./g, '_').replace(/ /g, '_');
     ogr2ogr(`${__dirname}/admin/files/${req.query.file}`)
     .format('PostgreSQL')
         .destination(`PG:host=${pool.$cn.host} user=${pool.$cn.user} dbname=${pool.$cn.database} password=${pool.$cn.password} port=${pool.$cn.port?pool.$cn.port:5432}`)
-        .options(['-nlt', 'PROMOTE_TO_MULTI', '-overwrite', '-lco', 'GEOMETRY_NAME=geom'])
+        .options(['-nlt', 'PROMOTE_TO_MULTI', '-overwrite', '-lco', 'GEOMETRY_NAME=geom', '-nln', tablename])
         .exec((err, data) => {
             if (err) {
               res.json({error: err.message});
