@@ -11,7 +11,7 @@ module.exports = function(app, pool) {
   }
   app.use(fileUpload({
     useTempFiles: true,
-    tempFileDir : `${__dirname}/admin/files/`
+    tempFileDir : `${__dirname}/temp/`
   }));
 
   app.post('/admin/upload', (req, res) => {

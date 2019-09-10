@@ -45,8 +45,13 @@
 
 
     function progressHandler(event){
-        document.querySelector("#status").innerHTML = `Uploaded ${byteString(event.loaded,1)} of ${byteString(event.total,1)}`
-        let percent = 100 * event.loaded / event.total;
+        document.querySelector("#status").innerHTML = `Uploaded ${byteString(event.loaded,1)} of ${byteString(event.total,1)}`;
+        let percent;
+        if (event.total) {
+            percent = 100 * event.loaded / event.total;
+        } else {
+            percent = 100;
+        }
         let secondsElapsed = (Date.now() - timeStart)/1000;
         let speed;
         if (secondsElapsed > 1) {
