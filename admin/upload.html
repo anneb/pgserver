@@ -109,9 +109,6 @@
         })
     }
     function fileLine(fileItem) {
-        if (fileItem.permissions.startsWith('d')) {
-            return '';
-        }
         return `<tr><td><a href="import?file=${fileItem.name}">import</a></td><td><a href="#" onclick="deleteFile('${fileItem.name}')">delete</a></td><td>${fileItem.permissions}</td><td>${byteString(fileItem.size,1)}</td><td>${fileItem.name}</td></tr>\n`
     }
     function updateFileList() {

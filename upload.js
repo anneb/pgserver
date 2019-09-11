@@ -15,17 +15,69 @@ module.exports = function(app, pool) {
     tempFileDir : `${__dirname}/temp/`
   }));
 
-  app.post('/admin/upload', (req, res) => {
+  function rmr(dirName) {
+    return new Promise((resolve, reject)=>{
+      exec(`rm -r "${dirName}"`, (err, stdout, stderr)=>{
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve();
+      })
+    })
+  }
+  
+  async function unArchiveFile(fileName) {
+    let parsedPath = path.parse(fileName);
+    let tempDir = `${__dirname}/temp/${parsedPath.base}`;
+    try {
+      await rmr(tempDir)
+    } catch (err) {
+      // ignore
+    }
+    return new Promise((resolve, reject)=>{
+      exec (`unzip -d "${tempDir}" "${fileName}"`, (err, stdout, stderr)=>{
+        if (err) {
+          reject('failed to execute unzip');
+          return;
+        }
+        console.log(`${stdout}`);
+        console.log(`${stderr}`);
+        try {
+          fs.unlinkSync(fileName);
+          fs.renameSync(tempDir, fileName);  
+        } catch (err) {
+          reject(`failed to mv zip files to directory: ${err.message}`);
+          return;
+        }
+        resolve()
+      })
+    })
+  }
+
+
+  app.post('/admin/upload', async (req, res) => {
     let uploadFile = req.files.uploadfile;
     const fileName = uploadFile.name;
     if (!fileName || fileName === "" ) {
       return res.json({file: "none"});
     }
+    let dest = `${__dirname}/admin/files/${fileName}`;
+    try {
+      await (rmr(dest));
+    } catch (err) {
+      // ignore
+    }
     uploadFile.mv(
-      `${__dirname}/admin/files/${fileName}`,
-      function (err) {
+      dest,
+      async function (err) {
         if (err) {
           return res.status(500).send(err.message);
+        }
+        try {
+          await unArchiveFile(`${__dirname}/admin/files/${fileName}`);
+        } catch (err) {
+          // ignore
         }
         res.json({
           file: `${fileName}`
@@ -49,10 +101,11 @@ module.exports = function(app, pool) {
       });
   });
 
-  app.get('/admin/list', (req, res)=>{
-    let files = fs.readdirSync(`${__dirname}/admin/files`).filter(file=>!file.startsWith('tmp-'));
+
+  function listFiles(dirname) {
+    let files = fs.readdirSync(dirname);
     files = files.map(file=>{
-      let stat = fs.statSync(`${__dirname}/admin/files/${file}`);
+      let stat = fs.statSync(path.join(dirname, file));
       let result = {
         name: file,
         size: stat.size,
@@ -66,22 +119,22 @@ module.exports = function(app, pool) {
         uid: stat.uid,
         gid: stat.gid
       }
+      if (result.dir) {
+        result.files = listFiles(path.join(dirname, result.name));
+      }
       return result;
     })
+    return files;
+  }
+
+  app.get('/admin/list', (req, res)=>{
+    let files = listFiles(`${__dirname}/admin/files`);
     res.json(files);
   })
 
   app.get('/admin/import', (req, res)=>{
     let tablename = path.parse(req.query.file).name.toLowerCase();
     tablename = tablename.replace(/\./g, '_').replace(/ /g, '_');
-    exec (`unzip -d "${__dirname}/admin/files/kkk" "${__dirname}/admin/files/${req.query.file}"`, (err, stdout, stderr)=>{
-      if (err) {
-        console.log('failed to execute unzip');
-        return;
-      }
-      console.log(`${stdout}`);
-      console.log(`${stderr}`);
-    })
     ogr2ogr(`${__dirname}/admin/files/${req.query.file}`)
     .format('PostgreSQL')
         .destination(`PG:host=${pool.$cn.host} user=${pool.$cn.user} dbname=${pool.$cn.database} password=${pool.$cn.password} port=${pool.$cn.port?pool.$cn.port:5432}`)
