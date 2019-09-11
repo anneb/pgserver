@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const ogr2ogr = require('ogr2ogr');
 const path = require('path');
+const { exec } = require('child_process');
 
 const fileUpload = require('express-fileupload');
 
@@ -71,9 +72,16 @@ module.exports = function(app, pool) {
   })
 
   app.get('/admin/import', (req, res)=>{
-
     let tablename = path.parse(req.query.file).name.toLowerCase();
     tablename = tablename.replace(/\./g, '_').replace(/ /g, '_');
+    exec (`unzip -d "${__dirname}/admin/files/kkk" "${__dirname}/admin/files/${req.query.file}"`, (err, stdout, stderr)=>{
+      if (err) {
+        console.log('failed to execute unzip');
+        return;
+      }
+      console.log(`${stdout}`);
+      console.log(`${stderr}`);
+    })
     ogr2ogr(`${__dirname}/admin/files/${req.query.file}`)
     .format('PostgreSQL')
         .destination(`PG:host=${pool.$cn.host} user=${pool.$cn.user} dbname=${pool.$cn.database} password=${pool.$cn.password} port=${pool.$cn.port?pool.$cn.port:5432}`)
