@@ -4,21 +4,26 @@
   "description": "PGserver receives, converts and serves geo-data between postgis and http-clients.",
   "main": "pgserver.js",
   "scripts": {
-    "start": "nodemon pgserver.js",
+    "start": "npx nodemon pgserver.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "postinstall": "cd public && npm install"
   },
   "author": "Anne Blankert, Geodan",
   "license": "ISC",
   "dependencies": {
+    "7zip-bin": "^5.0.3",
     "@mapbox/sphericalmercator": "^1.1.0",
     "cors": "^2.8.5",
     "express": "^4.17.1",
-    "express-fileupload": "^1.1.9",
+    "express-fileupload": "^1.2.1",
     "morgan": "^1.9.1",
-    "ogr2ogr": "^1.4.0",
-    "pg-promise": "^9.1.0",
+    "node-7z": "^2.0.4",
+    "ogr2ogr": "^2.1.2",
+    "pg-promise": "^10.10.2",
     "swagger-jsdoc": "^3.4.0",
     "swagger-ui-express": "^4.0.7"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.12"
   }
 }
